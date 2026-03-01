@@ -307,7 +307,7 @@ Append this after the `docker-build` job (after line 173):
       - uses: actions/checkout@v4
 
       - name: Set up flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@v1.5
+        uses: superfly/flyctl-actions/setup-flyctl@1.5
 
       - name: Deploy backend
         run: flyctl deploy --remote-only --config fly.backend.toml
