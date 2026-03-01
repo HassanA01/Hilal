@@ -199,9 +199,9 @@ jobs:
       - name: Deploy backend
         run: flyctl deploy --remote-only --config fly.backend.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BACKEND }}
 
       - name: Deploy frontend
         run: flyctl deploy --remote-only --config fly.frontend.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_FRONTEND }}

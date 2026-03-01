@@ -21,13 +21,8 @@ brew install flyctl
 # 2. Authenticate
 fly auth login
 
-# 3. Create Fly Postgres (free small tier)
-fly postgres create \
-  --name iftaroot-db \
-  --region iad \
-  --initial-cluster-size 1 \
-  --vm-size shared-cpu-1x \
-  --volume-size 1
+# 3. Create Fly Postgres (shared-cpu-1x is fine — 256MB works for single-node postgres-flex)
+fly postgres create --name iftaroot-db --region iad --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1
 
 # 4. Create the two apps
 fly apps create iftaroot-backend
@@ -39,20 +34,22 @@ fly postgres attach iftaroot-db --app iftaroot-backend
 # 6. Sign up at https://upstash.com → create a Redis database (free tier)
 #    Copy the Redis connection string (it looks like rediss://...)
 
-# 7. Set backend secrets (replace placeholders with real values)
-fly secrets set \
-  JWT_SECRET="$(openssl rand -hex 32)" \
-  REDIS_URL="rediss://<upstash-password>@<upstash-host>:6379" \
-  FRONTEND_URL="https://iftaroot-frontend.fly.dev" \
-  PORT="8080" \
-  --app iftaroot-backend
+# 7. Set backend secrets — set each on its own line to avoid shell line-wrap corruption
+#    (multiline backslash continuation breaks in zsh and can corrupt secret values)
+fly secrets set JWT_SECRET="$(openssl rand -hex 32)" -a iftaroot-backend
+fly secrets set REDIS_URL="rediss://default:<password>@<host>.upstash.io:6379" -a iftaroot-backend
+fly secrets set FRONTEND_URL="https://iftaroot-frontend.fly.dev" -a iftaroot-backend
+fly secrets set PORT="8080" -a iftaroot-backend
 
-# 8. Get your Fly API token for GitHub Actions
-fly auth token
-# → Copy this value. Add it to GitHub repo:
-#   Settings → Secrets and variables → Actions → New secret
-#   Name: FLY_API_TOKEN
-#   Value: (paste the token)
+# 8. Create scoped deploy tokens for GitHub Actions (one per app)
+fly tokens create deploy -a iftaroot-backend
+# → Copy output. Add to GitHub repo secrets as: FLY_API_TOKEN_BACKEND
+
+fly tokens create deploy -a iftaroot-frontend
+# → Copy output. Add to GitHub repo secrets as: FLY_API_TOKEN_FRONTEND
+#
+# Via CLI: gh secret set FLY_API_TOKEN_BACKEND --body "<token>"
+#          gh secret set FLY_API_TOKEN_FRONTEND --body "<token>"
 ```
 
 ---
@@ -281,7 +278,7 @@ Add a `deploy` job at the end of ci.yml that:
 - Runs ONLY on push to `main` (not on PRs or other branches)
 - Only starts after all CI jobs pass (`needs` all existing jobs)
 - Deploys backend first, then frontend
-- Uses the `FLY_API_TOKEN` secret stored in GitHub
+- Uses `FLY_API_TOKEN_BACKEND` and `FLY_API_TOKEN_FRONTEND` secrets (scoped deploy tokens, one per app)
 
 **Step 1: Add the deploy job at the end of .github/workflows/ci.yml**
 
@@ -315,12 +312,12 @@ Append this after the `docker-build` job (after line 173):
       - name: Deploy backend
         run: flyctl deploy --remote-only --config fly.backend.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BACKEND }}
 
       - name: Deploy frontend
         run: flyctl deploy --remote-only --config fly.frontend.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_FRONTEND }}
 ```
 
 Notes:
@@ -380,8 +377,9 @@ FRONTEND_URL=http://localhost:5173
 VITE_API_BASE_URL=http://localhost:8081/api/v1
 VITE_WS_BASE_URL=ws://localhost:8081
 
-# ── GitHub Actions Secrets (NOT in .env — set in repo Settings) ───────────
-# FLY_API_TOKEN  — from `fly auth token`, used by CD workflow to deploy
+# ── GitHub Actions Secrets (NOT in .env — set via gh secret set) ─────────
+# FLY_API_TOKEN_BACKEND  — from `fly tokens create deploy -a iftaroot-backend`
+# FLY_API_TOKEN_FRONTEND — from `fly tokens create deploy -a iftaroot-frontend`
 ```
 
 **Step 2: Commit**
@@ -466,7 +464,7 @@ fly logs --app iftaroot-backend
   - DevTools → Sources → search for `iftaroot-frontend.fly.dev`
 
 **Deploy job not triggered:**
-- Verify `FLY_API_TOKEN` secret exists in GitHub repo settings
+- Verify `FLY_API_TOKEN_BACKEND` and `FLY_API_TOKEN_FRONTEND` secrets exist in GitHub repo settings
 - Check the `if:` condition in the deploy job — it only runs on `push` to `main`, not PRs
 
 **Fly machine quota exceeded (free tier limit):**

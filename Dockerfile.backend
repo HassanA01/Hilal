@@ -23,6 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server ./cmd/server
 
 # ── Prod stage ──────────────────────────────────────────────────────────────────
 FROM gcr.io/distroless/static:nonroot AS prod
+WORKDIR /
 COPY --from=builder /server /server
 COPY --from=builder /app/migrations /migrations
 EXPOSE 8080
