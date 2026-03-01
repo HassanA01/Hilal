@@ -200,7 +200,7 @@ export function HostGamePage() {
       </div>
 
       {currentQuestion && (
-        <div className="flex-1 flex flex-col items-center px-6 py-8 max-w-3xl mx-auto w-full">
+        <div className="flex-1 flex flex-col items-center px-6 py-8 max-w-2xl mx-auto w-full">
           {/* Question text */}
           <div className="w-full bg-gray-900 rounded-2xl p-8 text-center mb-6">
             <p className="text-2xl font-bold leading-snug">
@@ -215,8 +215,8 @@ export function HostGamePage() {
             </p>
           )}
 
-          {/* Options grid */}
-          <div className="w-full grid grid-cols-2 gap-4">
+          {/* Options list */}
+          <div className="w-full flex flex-col gap-4">
             {currentQuestion.question.options.map((opt, i) => {
               const isCorrect = opt.is_correct;
               const revealed = phase === "reveal";
