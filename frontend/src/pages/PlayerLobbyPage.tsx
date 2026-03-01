@@ -121,7 +121,10 @@ export function PlayerLobbyPage() {
             The code <span className="font-mono text-indigo-400">{code}</span> doesn't match any
             active game.
           </p>
-          <a href="/join" className="inline-block text-indigo-400 hover:text-indigo-300 text-sm">
+          <a
+            href="/join"
+            className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg transition"
+          >
             ← Try a different code
           </a>
         </div>

@@ -123,4 +123,22 @@ describe("LeaderboardDisplay", () => {
     // Bob is now rank 1
     expect(screen.getByText("🥇")).toBeInTheDocument();
   });
+
+  // --- Mobile responsiveness ---
+
+  it("renders long player names without crashing", () => {
+    const longNameEntries = [
+      { player_id: "p1", name: "AVeryLongPlayerNameThatCouldOverflowOnMobile", score: 2000, rank: 1 },
+    ];
+    render(<LeaderboardDisplay entries={longNameEntries} />);
+    expect(screen.getByText("AVeryLongPlayerNameThatCouldOverflowOnMobile")).toBeInTheDocument();
+  });
+
+  it("score element has shrink-0 class to prevent it being squeezed by long names", () => {
+    render(<LeaderboardDisplay entries={entries} />);
+    // Find all score elements — they should have shrink-0 so they don't get pushed off screen
+    const scores = screen.getAllByText(/\d+/);
+    const scoreEl = scores.find((el) => el.textContent === "2000");
+    expect(scoreEl?.className).toMatch(/shrink-0/);
+  });
 });

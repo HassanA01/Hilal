@@ -116,14 +116,14 @@ export function LeaderboardDisplay({
                 : "bg-gray-900",
             ].join(" ")}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <span className="w-8 text-center font-black text-lg shrink-0">{rank}</span>
-              <span className="font-medium">{entry.name}</span>
+              <span className="font-medium truncate">{entry.name}</span>
               {isHighlighted && (
-                <span className="text-xs text-indigo-400">(you)</span>
+                <span className="text-xs text-indigo-400 shrink-0">(you)</span>
               )}
             </div>
-            <span className="font-bold text-indigo-300 tabular-nums">{entry.score}</span>
+            <span className="font-bold text-indigo-300 tabular-nums shrink-0 ml-2">{entry.score}</span>
           </div>
         );
       })}

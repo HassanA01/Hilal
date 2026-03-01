@@ -188,7 +188,7 @@ describe("PlayerGamePage", () => {
         },
       }),
     );
-    const link = screen.getByRole("link", { name: /join a new game/i });
+    const link = screen.getByRole("link", { name: /play again/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/join");
   });

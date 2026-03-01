@@ -73,7 +73,7 @@ export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Das
   const confetti = useMemo(() => generateConfetti(80), []);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center px-4 overflow-hidden relative">
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-start px-4 py-8 sm:justify-center sm:py-0 overflow-y-auto relative">
       {/* Confetti */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         {confetti.map((piece) => (
@@ -218,18 +218,18 @@ export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Das
                       : "bg-gray-900"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 text-center font-bold text-gray-400">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-8 text-center font-bold text-gray-400 shrink-0">
                       #{entry.rank}
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium truncate">
                       {entry.name}
                       {isSelf && (
                         <span className="ml-2 text-xs text-indigo-400">(you)</span>
                       )}
                     </span>
                   </div>
-                  <span className="font-bold text-indigo-300 tabular-nums">
+                  <span className="font-bold text-indigo-300 tabular-nums shrink-0 ml-2">
                     {entry.score}
                   </span>
                 </div>
@@ -247,15 +247,12 @@ export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Das
             {endLabel}
           </button>
         ) : (
-          <p className="text-gray-500 text-sm">
-            Want to play again?{" "}
-            <a
-              href="/join"
-              className="text-indigo-400 hover:text-indigo-300 transition"
-            >
-              Join a new game
-            </a>
-          </p>
+          <a
+            href="/join"
+            className="w-full block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl transition text-lg"
+          >
+            Play again
+          </a>
         )}
       </div>
     </div>

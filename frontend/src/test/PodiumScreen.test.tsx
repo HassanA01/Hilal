@@ -88,7 +88,7 @@ describe("PodiumScreen", () => {
 
   it("shows join link when no onEnd is provided (player view)", () => {
     render(<PodiumScreen entries={entries} />);
-    expect(screen.getByRole("link", { name: /join a new game/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /play again/i })).toBeInTheDocument();
   });
 
   it("does not render the end button in player view", () => {
@@ -109,5 +109,27 @@ describe("PodiumScreen", () => {
   it("uses custom endLabel on the button", () => {
     render(<PodiumScreen entries={entries} onEnd={vi.fn()} endLabel="End Session" />);
     expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument();
+  });
+
+  // --- Mobile responsiveness ---
+
+  it("play again link is a block-level element for full-width tap target", () => {
+    render(<PodiumScreen entries={entries} />);
+    const link = screen.getByRole("link", { name: /play again/i });
+    // Should have w-full and block classes for a large mobile tap target
+    expect(link.className).toMatch(/w-full/);
+    expect(link.className).toMatch(/block/);
+  });
+
+  it("rest player names have truncate class to prevent horizontal overflow", () => {
+    const longNameEntries = [
+      { player_id: "p1", name: "Alice", score: 3000, rank: 1 },
+      { player_id: "p2", name: "Bob", score: 2000, rank: 2 },
+      { player_id: "p3", name: "Carol", score: 1000, rank: 3 },
+      { player_id: "p4", name: "AVeryLongPlayerNameThatCouldOverflowOnMobile", score: 500, rank: 4 },
+    ];
+    render(<PodiumScreen entries={longNameEntries} />);
+    // The 4th-place player should render without breaking layout
+    expect(screen.getByText("AVeryLongPlayerNameThatCouldOverflowOnMobile")).toBeInTheDocument();
   });
 });
