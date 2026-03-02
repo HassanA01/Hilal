@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -51,5 +53,27 @@ func TestGenerateQuiz_ValidationErrors(t *testing.T) {
 				t.Errorf("want %d, got %d", tc.wantStatus, w.Code)
 			}
 		})
+	}
+}
+
+func TestGenerateQuiz_InvalidJSON(t *testing.T) {
+	h := newTestHandler()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.GenerateQuiz(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestGenerateQuiz_TopicTooLong(t *testing.T) {
+	h := newTestHandler()
+	w := postJSON(t, h.GenerateQuiz, map[string]any{
+		"topic":          string(make([]byte, 201)),
+		"question_count": 5,
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
 	}
 }
