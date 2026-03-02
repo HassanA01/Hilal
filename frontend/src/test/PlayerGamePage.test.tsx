@@ -1,4 +1,4 @@
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -311,7 +311,9 @@ describe("PlayerGamePage", () => {
 
     expect(sessionsApi.getPlayerResults).toHaveBeenCalledWith(SESSION_ID, PLAYER_ID);
 
-    // Wait for query to resolve and results to render
+    // Wait for query to resolve — "See how you scored" button appears once results are ready
+    const seeScoreBtn = await screen.findByRole("button", { name: /see how you scored/i });
+    fireEvent.click(seeScoreBtn);
     await screen.findByTestId("player-results-breakdown");
     expect(screen.getByText(/What is 2\+2\?/)).toBeInTheDocument();
     expect(screen.getByText(/Capital of France\?/)).toBeInTheDocument();

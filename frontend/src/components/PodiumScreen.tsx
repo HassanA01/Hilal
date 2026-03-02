@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Trophy, Sparkles } from "lucide-react";
 import { LanternIcon, CrescentIcon } from "./icons";
@@ -103,6 +103,7 @@ export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Das
   const confetti = useMemo(() => generateConfetti(30), []);
   const myEntry = entries.find((e) => e.player_id === playerId);
   const isChampion = myEntry?.rank === 1;
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
@@ -203,33 +204,57 @@ export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Das
           </div>
         )}
 
-        {/* Personal question breakdown */}
+        {/* Personal question breakdown — hidden until player taps "See how you scored" */}
         {playerResults && playerResults.questions.length > 0 && (
-          <div className="mb-6" data-testid="player-results-breakdown">
-            <h2 className="text-lg font-bold mb-3 text-center text-white">Your Performance</h2>
-            <div className="space-y-2">
-              {playerResults.questions.map((q, i) => (
-                <div key={q.question_id} className="rounded-xl px-4 py-3 flex items-start gap-3"
-                  style={{
-                    background: q.is_correct ? "rgba(76,175,80,0.15)" : "rgba(244,67,54,0.15)",
-                    border: `1px solid ${q.is_correct ? "rgba(76,175,80,0.4)" : "rgba(244,67,54,0.4)"}`,
-                  }}>
-                  <span className="text-xl mt-0.5 flex-shrink-0">{q.is_correct ? "✓" : "✗"}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white leading-snug">{i + 1}. {q.question_text}</p>
-                    <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
-                      Your answer: <span style={{ color: q.is_correct ? "#4caf50" : "#f44336" }}>{q.selected_option_text}</span>
-                    </p>
-                    {!q.is_correct && (
-                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
-                        Correct: <span style={{ color: "#4caf50" }}>{q.correct_option_text}</span>
-                      </p>
-                    )}
+          <div className="mb-6">
+            {!showBreakdown && (
+              <motion.button
+                onClick={() => setShowBreakdown(true)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full py-3 rounded-xl font-bold text-base"
+                style={{
+                  background: "rgba(245,200,66,0.12)",
+                  border: "2px solid rgba(245,200,66,0.4)",
+                  color: "#f5c842",
+                }}
+              >
+                See how you scored
+              </motion.button>
+            )}
+            {showBreakdown && (
+                <motion.div
+                  data-testid="player-results-breakdown"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
+                  <h2 className="text-lg font-bold mb-3 text-center text-white">Your Performance</h2>
+                  <div className="space-y-2">
+                    {playerResults.questions.map((q, i) => (
+                      <div key={q.question_id} className="rounded-xl px-4 py-3 flex items-start gap-3"
+                        style={{
+                          background: q.is_correct ? "rgba(76,175,80,0.15)" : "rgba(244,67,54,0.15)",
+                          border: `1px solid ${q.is_correct ? "rgba(76,175,80,0.4)" : "rgba(244,67,54,0.4)"}`,
+                        }}>
+                        <span className="text-xl mt-0.5 flex-shrink-0">{q.is_correct ? "✓" : "✗"}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white leading-snug">{i + 1}. {q.question_text}</p>
+                          <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
+                            Your answer: <span style={{ color: q.is_correct ? "#4caf50" : "#f44336" }}>{q.selected_option_text}</span>
+                          </p>
+                          {!q.is_correct && (
+                            <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+                              Correct: <span style={{ color: "#4caf50" }}>{q.correct_option_text}</span>
+                            </p>
+                          )}
+                        </div>
+                        {q.is_correct && <span className="font-black tabular-nums text-sm shrink-0" style={{ color: "#4caf50" }}>+{q.points}</span>}
+                      </div>
+                    ))}
                   </div>
-                  {q.is_correct && <span className="font-black tabular-nums text-sm shrink-0" style={{ color: "#4caf50" }}>+{q.points}</span>}
-                </div>
-              ))}
-            </div>
+                </motion.div>
+            )}
           </div>
         )}
 

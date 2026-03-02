@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PodiumScreen } from "../components/PodiumScreen";
 
@@ -109,6 +109,51 @@ describe("PodiumScreen", () => {
   it("uses custom endLabel on the button", () => {
     render(<PodiumScreen entries={entries} onEnd={vi.fn()} endLabel="End Session" />);
     expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument();
+  });
+
+  // --- Score breakdown toggle ---
+
+  const playerResults = {
+    player_id: "p1",
+    name: "Alice",
+    score: 3000,
+    rank: 1,
+    questions: [
+      {
+        question_id: "q1",
+        question_text: "What is 2+2?",
+        question_order: 1,
+        selected_option_id: "o1",
+        selected_option_text: "4",
+        correct_option_id: "o1",
+        correct_option_text: "4",
+        is_correct: true,
+        points: 900,
+      },
+    ],
+  };
+
+  it("hides the breakdown by default and shows 'See how you scored' button", () => {
+    render(<PodiumScreen entries={entries} playerResults={playerResults} />);
+    expect(screen.queryByTestId("player-results-breakdown")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /see how you scored/i })).toBeInTheDocument();
+  });
+
+  it("reveals the breakdown after clicking 'See how you scored'", async () => {
+    render(<PodiumScreen entries={entries} playerResults={playerResults} />);
+    fireEvent.click(screen.getByRole("button", { name: /see how you scored/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId("player-results-breakdown")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/What is 2\+2\?/)).toBeInTheDocument();
+  });
+
+  it("hides the 'See how you scored' button once the breakdown is open", async () => {
+    render(<PodiumScreen entries={entries} playerResults={playerResults} />);
+    fireEvent.click(screen.getByRole("button", { name: /see how you scored/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /see how you scored/i })).not.toBeInTheDocument(),
+    );
   });
 
   // --- Mobile responsiveness ---
