@@ -44,6 +44,7 @@ services:
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
     expose:
       - "8080"
 
