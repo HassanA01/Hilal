@@ -21,8 +21,14 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
     color: "white",
   };
 
+  const countInvalid = count < 1 || count > 10;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (countInvalid) {
+      setError("Maximum 10 questions for AI generation.");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -111,10 +117,18 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
                   value={count}
                   onChange={(e) => setCount(Number(e.target.value))}
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none transition"
-                  style={inputStyle}
-                  onFocus={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.6)")}
-                  onBlur={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.2)")}
+                  style={{
+                    ...inputStyle,
+                    borderColor: countInvalid ? "rgba(244,67,54,0.5)" : inputStyle.border.split(" ").pop(),
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = countInvalid ? "rgba(244,67,54,0.7)" : "rgba(245,200,66,0.6)")}
+                  onBlur={(e) => (e.target.style.borderColor = countInvalid ? "rgba(244,67,54,0.5)" : "rgba(245,200,66,0.2)")}
                 />
+                {countInvalid && (
+                  <p className="text-xs mt-1" style={{ color: "#f44336" }}>
+                    Maximum 10 questions for AI generation.
+                  </p>
+                )}
               </div>
 
               <div>
