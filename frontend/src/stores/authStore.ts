@@ -20,7 +20,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: () => !!get().token,
     }),
     {
-      name: "iftaroot-auth",
+      name: "hilal-auth",
       partialize: (state) => ({ token: state.token, admin: state.admin }),
     }
   )

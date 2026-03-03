@@ -38,7 +38,7 @@ func Load() *Config {
 
 	return &Config{
 		Port:            getEnv("PORT", "8081"),
-		DatabaseURL:     getEnv("DATABASE_URL", "postgres://iftaroot:iftaroot@localhost:5432/iftaroot?sslmode=disable"),
+		DatabaseURL:     getEnv("DATABASE_URL", "postgres://hilal:hilal@localhost:5432/hilal?sslmode=disable"),
 		RedisURL:        getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:       secret,
 		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:5173"),
@@ -114,9 +114,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/HassanA01/Iftaroot/backend/internal/config"
-	"github.com/HassanA01/Iftaroot/backend/internal/game"
-	"github.com/HassanA01/Iftaroot/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/config"
+	"github.com/HassanA01/Hilal/backend/internal/game"
+	"github.com/HassanA01/Hilal/backend/internal/hub"
 )
 
 type Handler struct {

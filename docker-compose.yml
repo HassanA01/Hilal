@@ -1,19 +1,19 @@
-name: iftaroot
+name: hilal
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-iftaroot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iftaroot}
-      POSTGRES_DB: ${POSTGRES_DB:-iftaroot}
+      POSTGRES_USER: ${POSTGRES_USER:-hilal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hilal}
+      POSTGRES_DB: ${POSTGRES_DB:-hilal}
     ports:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iftaroot}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hilal}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     environment:
       PORT: "8081"
-      DATABASE_URL: "postgres://${POSTGRES_USER:-iftaroot}:${POSTGRES_PASSWORD:-iftaroot}@postgres:5432/${POSTGRES_DB:-iftaroot}?sslmode=disable"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-hilal}:${POSTGRES_PASSWORD:-hilal}@postgres:5432/${POSTGRES_DB:-hilal}?sslmode=disable"
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-prod}
       FRONTEND_URL: "http://localhost:5173"

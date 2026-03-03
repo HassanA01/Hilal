@@ -5,7 +5,7 @@
 
 ## Goal
 
-Revamp all 11 screens of Iftaroot with a Ramadan-themed, elegant, modern aesthetic that delivers a great player and host experience. This revamp constitutes the first official release of the project.
+Revamp all 11 screens of Hilal with a Ramadan-themed, elegant, modern aesthetic that delivers a great player and host experience. This revamp constitutes the first official release of the project.
 
 ## Design Source
 

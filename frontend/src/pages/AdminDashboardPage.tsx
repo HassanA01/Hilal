@@ -31,7 +31,7 @@ export function AdminDashboardPage() {
               <CrescentIcon className="w-8 h-8" style={{ color: "#f5c842" }} />
               <LanternIcon className="w-4 h-4 absolute -bottom-1 -right-1" style={{ color: "#f5c842" }} />
             </div>
-            <span className="text-xl font-black" style={{ color: "#f5c842" }}>Iftaroot</span>
+            <span className="text-xl font-black" style={{ color: "#f5c842" }}>Hilal</span>
           </motion.div>
 
           <nav className="flex items-center gap-0.5 sm:gap-1">

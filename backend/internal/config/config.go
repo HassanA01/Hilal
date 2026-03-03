@@ -27,7 +27,7 @@ func Load() *Config {
 
 	return &Config{
 		Port:            getEnv("PORT", "8081"),
-		DatabaseURL:     getEnv("DATABASE_URL", "postgres://iftaroot:iftaroot@localhost:5432/iftaroot?sslmode=disable"),
+		DatabaseURL:     getEnv("DATABASE_URL", "postgres://hilal:hilal@localhost:5432/hilal?sslmode=disable"),
 		RedisURL:        getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:       secret,
 		FrontendURL:     getEnv("FRONTEND_URL", "http://localhost:5173"),
