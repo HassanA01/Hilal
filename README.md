@@ -1,158 +1,121 @@
-# Iftaroot
+<p align="center">
+  <img src="https://img.icons8.com/emoji/96/crescent-moon-emoji.png" width="80" alt="Iftaroot" />
+</p>
 
-A real-time multiplayer quiz game platform — think Kahoot, built with Go and React.
+<h1 align="center">Iftaroot</h1>
 
-## Stack
+<p align="center">
+  <strong>The free, open source alternative to Kahoot.</strong><br />
+  A real-time multiplayer quiz game built for Ramadan — and beyond.
+</p>
 
-| Layer     | Technology                                   |
-|-----------|----------------------------------------------|
-| Backend   | Go 1.24, Chi router, gorilla/websocket       |
-| Frontend  | React 19, TypeScript, Vite, Tailwind CSS v4  |
-| Database  | PostgreSQL 16                                |
-| Cache     | Redis 7                                      |
-| Auth      | JWT (admin only)                             |
-| Real-time | WebSockets                                   |
-| Container | Docker + Docker Compose                      |
+<p align="center">
+  <a href="https://github.com/HassanA01/Iftaroot/stargazers"><img src="https://img.shields.io/github/stars/HassanA01/Iftaroot?style=flat&color=f5c842" alt="GitHub Stars" /></a>
+  <a href="https://github.com/HassanA01/Iftaroot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
+  <a href="https://github.com/HassanA01/Iftaroot/actions/workflows/ci.yml"><img src="https://github.com/HassanA01/Iftaroot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/HassanA01/Iftaroot/releases"><img src="https://img.shields.io/github/v/release/HassanA01/Iftaroot?color=f5c842" alt="Release" /></a>
+</p>
 
-## Architecture
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#tech-stack">Tech Stack</a> ·
+  <a href="#self-hosting">Self-Hosting</a> ·
+  <a href="#contributing">Contributing</a> ·
+  <a href="#license">License</a>
+</p>
 
-```mermaid
-graph TD
-    AdminUI["Admin UI\n(React)"] -- "HTTP REST" --> API["Go API Server\n(Chi)"]
-    PlayerUI["Player UI\n(React)"] -- "HTTP REST" --> API
-    AdminUI -- "WebSocket /ws/host/:code" --> WS["WebSocket Hub"]
-    PlayerUI -- "WebSocket /ws/player/:code" --> WS
-    WS --> GameEngine["Game Engine\n(Go goroutines)"]
-    API --> DB[(PostgreSQL)]
-    GameEngine --> Redis[(Redis\npub/sub + state)]
-    API --> Redis
-```
+---
 
-## Game Flow
+<!-- TODO: Replace with a screenshot or demo video -->
+<p align="center">
+  <em>Demo video coming soon.</em>
+</p>
 
-1. Admin creates a quiz (questions + multiple-choice options)
-2. Admin starts a session — gets a 6-digit room code
-3. Players go to the join URL, enter the code + their name
-4. Admin broadcasts questions one at a time with a countdown timer
-5. When time expires or all players answer:
-   - Players see "Correct / Incorrect" for 3 seconds (with points earned)
-   - Admin screen shows the correct answer for 3 seconds
-6. Leaderboard is shown to all (admin + players) after each question
-7. After the final question, a podium (top 3) is displayed to everyone
+---
 
-### Scoring Algorithm
+## Why Iftaroot?
 
-```
-points = BasePoints × (1 - elapsed / timeLimit)
-BasePoints = 1000, minimum = 0
-```
+Kahoot locks core features — unlimited players, AI quiz generation, advanced game modes — behind paid plans. Iftaroot gives you all of that for free, forever, with full source code you can self-host and customize.
 
-Faster correct answers earn more points. Wrong answers earn 0.
+Built with a Ramadan-first design language (crescent moons, golden tones, prayer arc transitions), but works for any quiz night, classroom, or team event.
 
-## Quick Start (Docker)
+## Features
+
+- **Real-Time Gameplay** — WebSocket-powered. Every answer, score update, and reveal happens instantly across all connected players.
+- **AI-Powered Quiz Generation** — Describe a topic and let AI build the questions. Review, edit, and launch in seconds.
+- **Unlimited Players, Always Free** — No player caps, no paywalls, no feature gates.
+- **Speed Scoring** — Faster correct answers earn more points. Every question reshuffles the leaderboard.
+- **No Account Needed to Play** — Players join with a 6-digit code and a name. That's it.
+- **Ramadan-Themed Design** — Prayer arc transitions, crescent moon motifs, and golden design tokens — built with intention, not as an afterthought.
+
+## Quick Start
 
 ```bash
-# 1. Copy env vars
+# Clone the repo
+git clone https://github.com/HassanA01/Iftaroot.git
+cd Iftaroot
+
+# Copy environment variables
 cp .env.example .env
 
-# 2. Start everything (backend, frontend, postgres, redis)
+# Start everything (backend, frontend, postgres, redis)
 docker compose up --build
-
-# 3. Open in browser
-#    Admin:  http://localhost:5173
-#    Player: http://localhost:5173/join
 ```
 
-## Development Commands
+Open your browser:
 
-All commands run inside Docker (or locally with the right tooling installed).
+| Role   | URL                          |
+|--------|------------------------------|
+| Admin  | http://localhost:5173        |
+| Player | http://localhost:5173/join   |
 
-### Backend
+## Tech Stack
+
+| Layer     | Technology                                  |
+|-----------|---------------------------------------------|
+| Backend   | Go 1.24, Chi router, gorilla/websocket      |
+| Frontend  | React 19, TypeScript, Vite 7, Tailwind v4   |
+| Database  | PostgreSQL 16                               |
+| Cache     | Redis 7 (game state + pub/sub)              |
+| Auth      | JWT (admin-only, players are ephemeral)     |
+| AI        | Claude API (quiz generation)                |
+| Container | Docker + Docker Compose                     |
+
+## Self-Hosting
+
+Iftaroot runs entirely in Docker. The `docker-compose.yml` spins up all four services (backend, frontend, PostgreSQL, Redis) with hot-reload for development.
+
+### Production
 
 ```bash
-# Run tests
-docker compose exec backend go test ./...
-
-# Run linter
-docker compose exec backend golangci-lint run
-
-# Apply migrations (auto-runs on startup)
-# Manual: docker compose exec backend go run cmd/migrate/main.go
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-### Frontend
+See [`.env.example`](.env.example) for all required environment variables. At minimum you'll need:
+
+- `JWT_SECRET` — a strong random string for admin auth
+- `ANTHROPIC_API_KEY` — for AI quiz generation (optional, feature degrades gracefully)
+
+### Running Checks
 
 ```bash
-# Run tests
-docker compose exec frontend pnpm test
-
-# Lint
-docker compose exec frontend pnpm lint
-
-# Type check
-docker compose exec frontend pnpm exec tsc --noEmit
-```
-
-## Project Structure
-
-```
-Iftaroot/
-├── backend/
-│   ├── cmd/server/         # Entry point
-│   ├── internal/
-│   │   ├── config/         # Env config loader
-│   │   ├── db/             # DB + Redis connection, migrations
-│   │   ├── game/           # Scoring algorithm, game engine
-│   │   ├── handlers/       # HTTP + WebSocket handlers
-│   │   ├── hub/            # WebSocket hub (room management)
-│   │   ├── middleware/     # JWT auth middleware
-│   │   └── models/         # Domain models
-│   └── migrations/         # SQL migration files
-├── frontend/
-│   └── src/
-│       ├── api/            # Axios client + React Query
-│       ├── components/     # Reusable UI components
-│       ├── hooks/          # Custom React hooks (useWebSocket etc.)
-│       ├── pages/          # Route-level page components
-│       ├── stores/         # Zustand state stores
-│       └── types/          # TypeScript type definitions
-├── Dockerfile.backend
-├── Dockerfile.frontend
-├── docker-compose.yml
-└── .github/workflows/ci.yml
+# Run all checks (build, test, lint, typecheck) in Docker
+./scripts/check.sh
 ```
 
 ## Contributing
 
-1. Pick an issue and assign yourself
-2. Branch: `feat/<issue-number>-<short-description>`
-3. Implement + write tests
-4. Verify CI passes locally: `docker compose build && docker compose up -d`
-5. Open a PR — CI must pass before merge
-6. No direct commits to `main`
+Contributions are welcome! Here's the quick version:
 
-## WebSocket API
+1. Fork the repo and create a branch: `feat/<issue>-<description>` or `fix/<issue>-<description>`
+2. Write tests for your changes
+3. Run `./scripts/check.sh` — all checks must pass
+4. Open a PR to `main`
 
-### Host connects to
-```
-ws://host/ws/host/:sessionCode
-Authorization: Bearer <jwt>
-```
+See the [open issues](https://github.com/HassanA01/Iftaroot/issues) for things to work on.
 
-### Player connects to
-```
-ws://host/ws/player/:sessionCode?player_id=<id>&name=<name>
-```
+## License
 
-### Message types (both directions)
-| Type              | Direction       | Description                            |
-|-------------------|-----------------|----------------------------------------|
-| `player_joined`   | server → all    | New player joined the lobby            |
-| `player_left`     | server → all    | Player disconnected                    |
-| `game_started`    | server → all    | Game has started                       |
-| `question`        | server → all    | New question with options + timer      |
-| `answer_submitted`| client → server | Player submits their answer            |
-| `answer_reveal`   | server → all    | Correct answer revealed + points       |
-| `leaderboard`     | server → all    | Updated leaderboard after question     |
-| `game_over`       | server → all    | All questions complete                 |
-| `podium`          | server → all    | Top 3 players podium                   |
+Iftaroot is open source under the [MIT License](LICENSE).
