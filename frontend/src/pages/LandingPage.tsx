@@ -489,6 +489,7 @@ export function LandingPage() {
               "Paid plan for more players",
               "No Ramadan theme",
               "Generic quiz experience",
+              "AI quiz generation — paid only",
             ].map((item) => (
               <div key={item} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -528,6 +529,7 @@ export function LandingPage() {
               "No account needed to play",
               "Built for Ramadan",
               "Real-time, speed-scored competition",
+              "AI-powered quiz generation — free",
             ].map((item) => (
               <div key={item} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -546,7 +548,7 @@ export function LandingPage() {
         </motion.div>
 
         {/* Feature strip — 3 compact items */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: "rgba(255,255,255,0.05)", borderRadius: 16, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "rgba(255,255,255,0.05)", borderRadius: 16, overflow: "hidden" }}>
           {[
             {
               label: "Real-Time",
@@ -562,6 +564,11 @@ export function LandingPage() {
               label: "Speed Scoring",
               title: "Fast answers win more",
               body: "Points scale with response time. Know the answer AND be quick. Every question reshuffles the leaderboard.",
+            },
+            {
+              label: "AI-Powered",
+              title: "Generate quizzes instantly",
+              body: "Describe your topic and let AI build the questions. Review, edit, and launch — quiz creation in seconds, not minutes.",
             },
           ].map((f, i) => (
             <motion.div
