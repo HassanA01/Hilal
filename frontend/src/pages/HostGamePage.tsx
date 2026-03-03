@@ -217,7 +217,7 @@ export function HostGamePage() {
         style={{ background: "linear-gradient(180deg, rgba(30,15,50,0.95) 0%, rgba(20,10,40,0.9) 100%)", borderBottom: "1px solid rgba(245,200,66,0.2)" }}>
         <div className="flex items-center gap-2 sm:gap-3">
           <CrescentIcon className="w-6 h-6" style={{ color: "#f5c842" }} />
-          <span className="hidden sm:inline text-lg font-bold" style={{ color: "#f5c842" }}>Iftaroot Live</span>
+          <span className="hidden sm:inline text-lg font-bold" style={{ color: "#f5c842" }}>Hilal Live</span>
           <span className="font-mono text-sm px-2 py-0.5 rounded" style={{ background: "rgba(245,200,66,0.1)", color: "rgba(255,255,255,0.5)" }}>{code}</span>
         </div>
         {currentQuestion && (

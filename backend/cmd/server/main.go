@@ -14,10 +14,10 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 
-	"github.com/HassanA01/Iftaroot/backend/internal/config"
-	"github.com/HassanA01/Iftaroot/backend/internal/db"
-	"github.com/HassanA01/Iftaroot/backend/internal/handlers"
-	"github.com/HassanA01/Iftaroot/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/config"
+	"github.com/HassanA01/Hilal/backend/internal/db"
+	"github.com/HassanA01/Hilal/backend/internal/handlers"
+	"github.com/HassanA01/Hilal/backend/internal/hub"
 )
 
 func main() {

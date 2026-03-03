@@ -1,6 +1,6 @@
 # Fly.io Deployment — Everything That Went Wrong (and Why)
 
-First production deployment of Iftaroot (2026-03-01). This doc covers every obstacle hit in order, with the actual error, what it meant in plain English, and exactly what fixed it.
+First production deployment of Hilal (2026-03-01). This doc covers every obstacle hit in order, with the actual error, what it meant in plain English, and exactly what fixed it.
 
 ---
 
@@ -11,9 +11,9 @@ First production deployment of Iftaroot (2026-03-01). This doc covers every obst
 fly secrets set \
     JWT_SECRET="$(openssl rand -hex 32)" \
     REDIS_URL="rediss://..." \
-    FRONTEND_URL="https://iftaroot-frontend.fly.dev" \
+    FRONTEND_URL="https://hilal-frontend.fly.dev" \
     PORT="8080" \
-    --app iftaroot-backend
+    --app hilal-backend
 ```
 
 ### The error
@@ -25,23 +25,23 @@ Error: the config for your app is missing an app name
 ```
 
 ### What it meant (plain English)
-The backslash (`\`) at the end of each line is supposed to tell the shell "this command continues on the next line." But zsh was treating each continuation line as a separate command, so `--app iftaroot-backend` ended up being parsed on its own — which isn't a valid command.
+The backslash (`\`) at the end of each line is supposed to tell the shell "this command continues on the next line." But zsh was treating each continuation line as a separate command, so `--app hilal-backend` ended up being parsed on its own — which isn't a valid command.
 
 ### Fix
 Run it as a single line, or set each secret separately:
 ```bash
-fly secrets set JWT_SECRET="..." -a iftaroot-backend
-fly secrets set REDIS_URL="..." -a iftaroot-backend
+fly secrets set JWT_SECRET="..." -a hilal-backend
+fly secrets set REDIS_URL="..." -a hilal-backend
 ```
 
 ---
 
 ## Problem 2: Postgres cluster wouldn't start (boot loop)
 
-### The error (from `fly logs --app iftaroot-db`)
+### The error (from `fly logs --app hilal-db`)
 ```
 repmgrd | [ERROR] connection to database failed
-connection to server at "7817660b255178.vm.iftaroot-db.internal" port 5433 failed: timeout expired
+connection to server at "7817660b255178.vm.hilal-db.internal" port 5433 failed: timeout expired
 monitor | failed to open local connection: failed to connect to host=...: dial error (timeout: context deadline exceeded)
 repmgrd | exit status 6
 repmgrd | restarting in 5s [attempt 2]
@@ -56,8 +56,8 @@ The root cause here was likely a **Fly infrastructure glitch on the first cluste
 ### Fix
 Destroy the broken cluster and recreate it:
 ```bash
-fly apps destroy iftaroot-db --yes
-fly postgres create --name iftaroot-db --region iad --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1
+fly apps destroy hilal-db --yes
+fly postgres create --name hilal-db --region iad --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1
 ```
 
 The new cluster (machine `2873267f430908`) came up healthy on the same VM size.
@@ -77,7 +77,7 @@ Before you can attach Postgres to an app, the cluster needs a healthy "primary" 
 ### Fix
 This resolved itself once the Postgres cluster was recreated on a larger VM and fully started. We also discovered the attach had already partially succeeded on a previous attempt — Fly had set `DATABASE_URL` as a secret on the backend app, so the second attempt gave us:
 ```
-Error: consumer app "iftaroot-backend" already contains a secret named DATABASE_URL
+Error: consumer app "hilal-backend" already contains a secret named DATABASE_URL
 ```
 That's actually fine — it meant the attach worked the first time around.
 
@@ -85,7 +85,7 @@ That's actually fine — it meant the attach worked the first time around.
 
 ## Problem 4: Backend crashed on boot — migrations directory not found
 
-### The error (from `fly logs --app iftaroot-backend`)
+### The error (from `fly logs --app hilal-backend`)
 ```
 failed to run migrations: failed to create migrator: failed to open source, "file://migrations": open .: no such file or directory
 ```
@@ -136,7 +136,7 @@ Re-running `fly auth login` to get a fresh session, then redeploying. This wasn'
 
 ## Problem 6: Redis URL had a hidden newline in it
 
-### The error (from `fly logs --app iftaroot-backend`)
+### The error (from `fly logs --app hilal-backend`)
 ```
 failed to connect to redis: invalid redis URL: parse "rediss://default:AdjsAAIncDIwNTI1ODQwNGQwOGU0N2MyOTM5NTVlYTZi\n  ZWFkZGM3ZXAyNTU1MzI@sincere-cougar-55532.upstash.io:6379": net/url: invalid control character in URL
 ```
@@ -155,7 +155,7 @@ Re-set the secret as a guaranteed single line. Reconstructed the full password b
 - Full: `AdjsAAIncDIwNTI1ODQwNGQwOGU0N2MyOTM5NTVlYTZiZWFkZGM3ZXAyNTU1MzI`
 
 ```bash
-fly secrets set REDIS_URL="rediss://default:AdjsAAIncDIwNTI1ODQwNGQwOGU0N2MyOTM5NTVlYTZiZWFkZGM3ZXAyNTU1MzI@sincere-cougar-55532.upstash.io:6379" -a iftaroot-backend
+fly secrets set REDIS_URL="rediss://default:AdjsAAIncDIwNTI1ODQwNGQwOGU0N2MyOTM5NTVlYTZiZWFkZGM3ZXAyNTU1MzI@sincere-cougar-55532.upstash.io:6379" -a hilal-backend
 ```
 
 **Prevention:** Issue #25 tracks adding startup validation that catches malformed URLs (with control characters) before attempting to connect. This would have given us an immediate clear error instead of a confusing "invalid control character" deep in the Redis connection code.
@@ -177,8 +177,8 @@ Additionally, the token was accidentally pasted into this chat session (exposed 
 ### Fix
 Use scoped deploy tokens — one per app:
 ```bash
-fly tokens create deploy -a iftaroot-backend   # → FLY_API_TOKEN_BACKEND
-fly tokens create deploy -a iftaroot-frontend  # → FLY_API_TOKEN_FRONTEND
+fly tokens create deploy -a hilal-backend   # → FLY_API_TOKEN_BACKEND
+fly tokens create deploy -a hilal-frontend  # → FLY_API_TOKEN_FRONTEND
 ```
 
 Deploy tokens are scoped to a single app, have configurable expiry, and are visible/revocable in the dashboard.

@@ -163,7 +163,7 @@ export function LandingPage() {
             letterSpacing: "0.08em",
             color: "#f5c842",
           }}>
-            IFTAROOT
+            HILAL
           </span>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
@@ -444,7 +444,7 @@ export function LandingPage() {
             color: "#f5c842", textTransform: "uppercase",
             fontFamily: "'Poppins', sans-serif", marginBottom: 16,
           }}>
-            Why Iftaroot
+            Why Hilal
           </p>
           <h2 style={{
             fontFamily: "'Poppins', sans-serif",
@@ -506,7 +506,7 @@ export function LandingPage() {
             ))}
           </div>
 
-          {/* Iftaroot column */}
+          {/* Hilal column */}
           <div style={{
             padding: "40px 44px",
             background: "rgba(245,200,66,0.04)",
@@ -522,7 +522,7 @@ export function LandingPage() {
               letterSpacing: "0.25em", fontWeight: 700, color: "#f5c842",
               textTransform: "uppercase", marginBottom: 20,
             }}>
-              Iftaroot
+              Hilal
             </p>
             {[
               "Unlimited players, always free",
@@ -809,7 +809,7 @@ export function LandingPage() {
               fontSize: 11, color: "rgba(250,243,224,0.15)",
               letterSpacing: "0.08em",
             }}>
-              © {new Date().getFullYear()} Iftaroot. All rights reserved.
+              © {new Date().getFullYear()} Hilal. All rights reserved.
             </p>
           </div>
         </div>

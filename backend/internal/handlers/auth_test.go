@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/HassanA01/Iftaroot/backend/internal/config"
+	"github.com/HassanA01/Hilal/backend/internal/config"
 )
 
 // newTestHandler returns a Handler with nil DB/Redis/hub — safe for tests

@@ -15,9 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/HassanA01/Iftaroot/backend/internal/hub"
-	appMiddleware "github.com/HassanA01/Iftaroot/backend/internal/middleware"
-	"github.com/HassanA01/Iftaroot/backend/internal/models"
+	"github.com/HassanA01/Hilal/backend/internal/hub"
+	appMiddleware "github.com/HassanA01/Hilal/backend/internal/middleware"
+	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {

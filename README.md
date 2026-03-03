@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.icons8.com/emoji/96/crescent-moon-emoji.png" width="80" alt="Iftaroot" />
+  <img src="https://img.icons8.com/emoji/96/crescent-moon-emoji.png" width="80" alt="Hilal" />
 </p>
 
-<h1 align="center">Iftaroot</h1>
+<h1 align="center">Hilal</h1>
 
 <p align="center">
   <strong>The free, open source alternative to Kahoot.</strong><br />
@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/HassanA01/Iftaroot/stargazers"><img src="https://img.shields.io/github/stars/HassanA01/Iftaroot?style=flat&color=f5c842" alt="GitHub Stars" /></a>
-  <a href="https://github.com/HassanA01/Iftaroot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
-  <a href="https://github.com/HassanA01/Iftaroot/actions/workflows/ci.yml"><img src="https://github.com/HassanA01/Iftaroot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/HassanA01/Iftaroot/releases"><img src="https://img.shields.io/github/v/release/HassanA01/Iftaroot?color=f5c842" alt="Release" /></a>
+  <a href="https://github.com/HassanA01/Hilal/stargazers"><img src="https://img.shields.io/github/stars/HassanA01/Hilal?style=flat&color=f5c842" alt="GitHub Stars" /></a>
+  <a href="https://github.com/HassanA01/Hilal/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
+  <a href="https://github.com/HassanA01/Hilal/actions/workflows/ci.yml"><img src="https://github.com/HassanA01/Hilal/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/HassanA01/Hilal/releases"><img src="https://img.shields.io/github/v/release/HassanA01/Hilal?color=f5c842" alt="Release" /></a>
 </p>
 
 <p align="center">
@@ -34,9 +34,9 @@
 
 ---
 
-## Why Iftaroot?
+## Why Hilal?
 
-Kahoot locks core features — unlimited players, AI quiz generation, advanced game modes — behind paid plans. Iftaroot gives you all of that for free, forever, with full source code you can self-host and customize.
+Kahoot locks core features — unlimited players, AI quiz generation, advanced game modes — behind paid plans. Hilal gives you all of that for free, forever, with full source code you can self-host and customize.
 
 Built with a Ramadan-first design language (crescent moons, golden tones, prayer arc transitions), but works for any quiz night, classroom, or team event.
 
@@ -53,8 +53,8 @@ Built with a Ramadan-first design language (crescent moons, golden tones, prayer
 
 ```bash
 # Clone the repo
-git clone https://github.com/HassanA01/Iftaroot.git
-cd Iftaroot
+git clone https://github.com/HassanA01/Hilal.git
+cd Hilal
 
 # Copy environment variables
 cp .env.example .env
@@ -84,7 +84,7 @@ Open your browser:
 
 ## Self-Hosting
 
-Iftaroot runs entirely in Docker. The `docker-compose.yml` spins up all four services (backend, frontend, PostgreSQL, Redis) with hot-reload for development.
+Hilal runs entirely in Docker. The `docker-compose.yml` spins up all four services (backend, frontend, PostgreSQL, Redis) with hot-reload for development.
 
 ### Production
 
@@ -114,8 +114,8 @@ Contributions are welcome! Here's the quick version:
 3. Run `./scripts/check.sh` — all checks must pass
 4. Open a PR to `main`
 
-See the [open issues](https://github.com/HassanA01/Iftaroot/issues) for things to work on.
+See the [open issues](https://github.com/HassanA01/Hilal/issues) for things to work on.
 
 ## License
 
-Iftaroot is open source under the [MIT License](LICENSE).
+Hilal is open source under the [MIT License](LICENSE).

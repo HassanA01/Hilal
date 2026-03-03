@@ -1,4 +1,4 @@
-# Iftaroot — CLAUDE.md
+# Hilal — CLAUDE.md
 
 Project-level context for Claude Code. Supplements the global CLAUDE.md.
 

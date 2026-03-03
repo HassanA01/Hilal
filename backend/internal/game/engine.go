@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/HassanA01/Iftaroot/backend/internal/hub"
-	"github.com/HassanA01/Iftaroot/backend/internal/models"
+	"github.com/HassanA01/Hilal/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
 // GamePhase represents the current phase of the game.

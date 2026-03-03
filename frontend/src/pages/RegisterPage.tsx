@@ -66,7 +66,7 @@ export function RegisterPage() {
               <LanternIcon className="w-5 h-5 absolute -bottom-1 -right-1" style={{ color: "#f5c842" }} />
             </div>
             <span className="text-3xl font-black" style={{ color: "#f5c842", textShadow: "0 0 20px rgba(245,200,66,0.4)" }}>
-              Iftaroot
+              Hilal
             </span>
           </div>
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>Create an admin account</p>

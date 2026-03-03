@@ -46,7 +46,7 @@ Faster correct answers earn more points. Wrong answers earn 0.
 ## Project Structure
 
 ```
-Iftaroot/
+Hilal/
 ├── backend/
 │   ├── cmd/server/         # Entry point
 │   ├── internal/

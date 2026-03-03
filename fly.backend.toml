@@ -1,6 +1,6 @@
 # Fly.io configuration for the Go backend
 # Deploy with: flyctl deploy --config fly.backend.toml
-app = "iftaroot-backend"
+app = "hilal-backend"
 primary_region = "iad"
 
 [build]
@@ -10,7 +10,7 @@ primary_region = "iad"
 [env]
   PORT = "8080"
 
-# Backend is reachable at iftaroot-backend.fly.dev (force_https=false, no redirect)
+# Backend is reachable at hilal-backend.fly.dev (force_https=false, no redirect)
 # Primary access is via the frontend nginx proxy over Fly's private .internal network
 [http_service]
   internal_port = 8080

@@ -13,7 +13,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/HassanA01/Iftaroot
+    local-prefixes: github.com/HassanA01/Hilal
 
 issues:
   exclude-rules:

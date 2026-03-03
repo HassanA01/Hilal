@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	appMiddleware "github.com/HassanA01/Iftaroot/backend/internal/middleware"
-	"github.com/HassanA01/Iftaroot/backend/internal/models"
+	appMiddleware "github.com/HassanA01/Hilal/backend/internal/middleware"
+	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
 func (h *Handler) ListQuizzes(w http.ResponseWriter, r *http.Request) {
