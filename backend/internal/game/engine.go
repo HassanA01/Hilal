@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -13,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/HassanA01/Hilal/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/metrics"
 	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
@@ -132,7 +133,7 @@ func (e *Engine) StartGame(ctx context.Context, sessionCode, sessionID, quizID s
 		time.Sleep(3 * time.Second)
 		bgCtx := context.Background()
 		if err := e.broadcastQuestion(bgCtx, sessionCode, 0); err != nil {
-			log.Printf("engine: broadcastQuestion error: %v", err)
+			slog.Error("engine: broadcastQuestion failed", "error", err, "session", sessionCode)
 		}
 	}()
 
@@ -191,9 +192,12 @@ func (e *Engine) SubmitAnswer(ctx context.Context, sessionCode, playerID, questi
 		return nil // already answered
 	}
 
+	now := time.Now()
+	metrics.RecordAnswerLatency(now.Sub(state.QuestionStarted))
+
 	ans := playerAnswer{
 		OptionID:   optionIDStr,
-		AnsweredAt: time.Now(),
+		AnsweredAt: now,
 	}
 	ansData, _ := json.Marshal(ans)
 	e.redis.HSet(ctx, answerKey, playerID, string(ansData))
@@ -218,7 +222,7 @@ func (e *Engine) SubmitAnswer(ctx context.Context, sessionCode, playerID, questi
 		go func() {
 			bgCtx := context.Background()
 			if err := e.triggerReveal(bgCtx, sessionCode); err != nil {
-				log.Printf("engine: triggerReveal error: %v", err)
+				slog.Error("engine: triggerReveal failed", "error", err, "session", sessionCode)
 			}
 		}()
 	}
@@ -304,7 +308,7 @@ func (e *Engine) broadcastQuestion(ctx context.Context, sessionCode string, idx 
 				return
 			}
 			if err := e.triggerReveal(bgCtx, code); err != nil {
-				log.Printf("engine: timer reveal error: %v", err)
+				slog.Error("engine: timer reveal failed", "error", err, "session", code)
 			}
 		case <-cancelCh:
 			// Cancelled by SubmitAnswer (all answered) or NextQuestion.
@@ -387,7 +391,7 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 			ans.AnsweredAt, isCorrect, points,
 		)
 		if dbErr != nil {
-			log.Printf("engine: insert answer error: %v", dbErr)
+			slog.Error("engine: insert answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
 		}
 
 		if points > 0 {
@@ -423,7 +427,7 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 		time.Sleep(3 * time.Second)
 		bgCtx := context.Background()
 		if err := e.broadcastLeaderboard(bgCtx, sessionCode); err != nil {
-			log.Printf("engine: broadcastLeaderboard error: %v", err)
+			slog.Error("engine: broadcastLeaderboard failed", "error", err, "session", sessionCode)
 		}
 	}()
 

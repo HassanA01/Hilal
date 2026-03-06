@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/HassanA01/Hilal/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/metrics"
 	appMiddleware "github.com/HassanA01/Hilal/backend/internal/middleware"
 	"github.com/HassanA01/Hilal/backend/internal/models"
 )
@@ -178,6 +179,7 @@ func (h *Handler) EndSession(w http.ResponseWriter, r *http.Request) {
 
 	// Notify all WebSocket clients and clean up Redis.
 	h.engine.EndGame(context.Background(), code)
+	metrics.ActiveGames.Add(-1)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -284,6 +286,8 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	metrics.ActiveGames.Add(1)
+
 	h.hub.Broadcast(session.Code, hub.Message{
 		Type:    hub.MsgGameStarted,
 		Payload: map[string]string{"session_id": session.ID.String()},
@@ -293,7 +297,7 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 	// r.Context() is cancelled when the HTTP response is sent, so we must not use it here.
 	go func() {
 		if err := h.engine.StartGame(context.Background(), session.Code, session.ID.String(), session.QuizID.String()); err != nil {
-			log.Printf("engine.StartGame error: %v", err)
+			slog.Error("engine.StartGame failed", "error", err, "session", session.Code)
 		}
 	}()
 

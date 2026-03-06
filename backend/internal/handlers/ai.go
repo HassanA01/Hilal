@@ -14,6 +14,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/HassanA01/Hilal/backend/internal/metrics"
 	"github.com/HassanA01/Hilal/backend/internal/middleware"
 )
 
@@ -149,6 +150,7 @@ func (h *Handler) GenerateQuiz(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	aiStart := time.Now()
 	resp, err := h.anthropicClient.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.ModelClaudeSonnet4_6,
 		MaxTokens: 4096,
@@ -165,6 +167,7 @@ func (h *Handler) GenerateQuiz(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	})
+	metrics.RecordAIGenerationLatency(time.Since(aiStart))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("AI service error: %v", err))
 		return

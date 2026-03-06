@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -22,7 +22,7 @@ type Config struct {
 func Load() *Config {
 	anthropicKey := getEnv("ANTHROPIC_API_KEY", "")
 	if anthropicKey == "" {
-		log.Println("ANTHROPIC_API_KEY not set — AI quiz generation disabled")
+		slog.Warn("ANTHROPIC_API_KEY not set — AI quiz generation disabled")
 	}
 
 	aiRateLimit := 5

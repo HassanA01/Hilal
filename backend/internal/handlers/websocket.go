@@ -3,7 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,6 +13,7 @@ import (
 
 	"github.com/HassanA01/Hilal/backend/internal/game"
 	"github.com/HassanA01/Hilal/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/metrics"
 )
 
 func newUpgrader(frontendURL string) *websocket.Upgrader {
@@ -37,7 +38,7 @@ func (h *Handler) HostWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := newUpgrader(h.config.FrontendURL).Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("ws upgrade error: %v", err)
+		slog.Error("ws upgrade error", "error", err)
 		return
 	}
 
@@ -48,8 +49,10 @@ func (h *Handler) HostWebSocket(w http.ResponseWriter, r *http.Request) {
 		Send:      make(chan []byte, 256),
 	}
 	h.hub.JoinRoom(sessionCode, client)
+	metrics.ActiveWSConnections.Add(1)
 	defer func() {
 		h.hub.LeaveRoom(sessionCode, client)
+		metrics.ActiveWSConnections.Add(-1)
 		conn.Close()
 	}()
 
@@ -67,7 +70,7 @@ func (h *Handler) PlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := newUpgrader(h.config.FrontendURL).Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("ws upgrade error: %v", err)
+		slog.Error("ws upgrade error", "error", err)
 		return
 	}
 
@@ -78,8 +81,10 @@ func (h *Handler) PlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 		Send:      make(chan []byte, 256),
 	}
 	h.hub.JoinRoom(sessionCode, client)
+	metrics.ActiveWSConnections.Add(1)
 	defer func() {
 		h.hub.LeaveRoom(sessionCode, client)
+		metrics.ActiveWSConnections.Add(-1)
 		conn.Close()
 		// Notify host that player left
 		h.hub.Broadcast(sessionCode, hub.Message{
@@ -118,14 +123,14 @@ func readPump(conn *websocket.Conn, client *hub.Client, h *Handler, sessionCode 
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("ws read error: %v", err)
+				slog.Error("ws read error", "error", err, "session", sessionCode)
 			}
 			break
 		}
 
 		var msg hub.Message
 		if err := json.Unmarshal(message, &msg); err != nil {
-			log.Printf("ws unmarshal error: %v", err)
+			slog.Error("ws unmarshal error", "error", err, "session", sessionCode)
 			continue
 		}
 
@@ -194,7 +199,7 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 			return
 		}
 		if err := h.engine.SubmitAnswer(ctx, sessionCode, client.ID, questionID, optionID); err != nil {
-			log.Printf("engine.SubmitAnswer error: %v", err)
+			slog.Error("engine.SubmitAnswer failed", "error", err, "session", sessionCode, "player", client.ID)
 		}
 
 	case hub.MsgNextQuestion:
@@ -202,11 +207,11 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 			return
 		}
 		if err := h.engine.NextQuestion(ctx, sessionCode); err != nil {
-			log.Printf("engine.NextQuestion error: %v", err)
+			slog.Error("engine.NextQuestion failed", "error", err, "session", sessionCode)
 		}
 
 	default:
-		log.Printf("unhandled message type: %s from isHost=%v", msg.Type, isHost)
+		slog.Warn("unhandled message type", "type", msg.Type, "isHost", isHost, "session", sessionCode)
 	}
 }
 
