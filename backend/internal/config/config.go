@@ -17,6 +17,7 @@ type Config struct {
 	FrontendURL        string
 	AnthropicAPIKey    string
 	AIRateLimitPerHour int
+	UploadsDir         string
 }
 
 func Load() *Config {
@@ -40,6 +41,7 @@ func Load() *Config {
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
 		AnthropicAPIKey:    anthropicKey,
 		AIRateLimitPerHour: aiRateLimit,
+		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
 	}
 }
 

@@ -4,19 +4,25 @@ export interface Admin {
   created_at: string;
 }
 
+export type QuestionType = "multiple_choice" | "true_false" | "image_choice" | "ordering";
+
 export interface Option {
   id: string;
   question_id: string;
   text: string;
   is_correct?: boolean; // only visible to host
+  image_url?: string;
+  sort_order?: number;
 }
 
 export interface Question {
   id: string;
   quiz_id: string;
   text: string;
+  type: QuestionType;
   time_limit: number;
   order: number;
+  image_url?: string;
   options: Option[];
 }
 
@@ -94,8 +100,10 @@ export interface QuestionPayload {
   question: {
     id: string;
     text: string;
+    type: QuestionType;
     time_limit: number;
-    options: Array<{ id: string; text: string }>;
+    image_url?: string;
+    options: Array<{ id: string; text: string; image_url?: string }>;
   };
 }
 
@@ -106,7 +114,8 @@ export interface RevealScoreEntry {
 }
 
 export interface AnswerRevealPayload {
-  correct_option_id: string;
+  correct_option_id?: string;
+  correct_order?: string[];
   scores: Record<string, RevealScoreEntry>;
 }
 

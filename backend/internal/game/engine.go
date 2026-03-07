@@ -42,8 +42,10 @@ type GameState struct {
 type storedQuestion struct {
 	ID        string         `json:"id"`
 	Text      string         `json:"text"`
+	Type      string         `json:"type"`
 	TimeLimit int            `json:"time_limit"`
 	Order     int            `json:"order"`
+	ImageURL  string         `json:"image_url,omitempty"`
 	Options   []storedOption `json:"options"`
 }
 
@@ -51,11 +53,14 @@ type storedOption struct {
 	ID        string `json:"id"`
 	Text      string `json:"text"`
 	IsCorrect bool   `json:"is_correct"`
+	ImageURL  string `json:"image_url,omitempty"`
+	SortOrder int    `json:"sort_order"`
 }
 
 // playerAnswer tracks a single player's answer in Redis.
 type playerAnswer struct {
-	OptionID   string    `json:"option_id"`
+	OptionID   string    `json:"option_id,omitempty"`
+	OptionIDs  []string  `json:"option_ids,omitempty"` // for ordering questions
 	AnsweredAt time.Time `json:"answered_at"`
 }
 
@@ -230,6 +235,68 @@ func (e *Engine) SubmitAnswer(ctx context.Context, sessionCode, playerID, questi
 	return nil
 }
 
+// SubmitOrderingAnswer records a player's ordering answer.
+func (e *Engine) SubmitOrderingAnswer(ctx context.Context, sessionCode, playerID, questionIDStr string, optionIDs []string) error {
+	state, err := e.loadState(ctx, sessionCode)
+	if err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+	if state.Phase != PhaseQuestion {
+		return fmt.Errorf("not in question phase (current: %s)", state.Phase)
+	}
+
+	questions, err := e.loadCachedQuestions(ctx, sessionCode)
+	if err != nil {
+		return err
+	}
+	q := questions[state.CurrentIndex]
+	if q.ID != questionIDStr {
+		return fmt.Errorf("question_id mismatch")
+	}
+
+	// Store answer in Redis (idempotent — first answer wins).
+	answerKey := redisKeyAnswers(sessionCode, state.CurrentIndex)
+	existing, err := e.redis.HGet(ctx, answerKey, playerID).Result()
+	if err == nil && existing != "" {
+		return nil // already answered
+	}
+
+	now := time.Now()
+	metrics.RecordAnswerLatency(now.Sub(state.QuestionStarted))
+
+	ans := playerAnswer{
+		OptionIDs:  optionIDs,
+		AnsweredAt: now,
+	}
+	ansData, _ := json.Marshal(ans)
+	e.redis.HSet(ctx, answerKey, playerID, string(ansData))
+	e.redis.Expire(ctx, answerKey, 24*time.Hour)
+
+	// Check if all connected players have answered.
+	playerCount := e.hub.RoomPlayerCount(sessionCode)
+	answeredCount, _ := e.redis.HLen(ctx, answerKey).Result()
+
+	e.hub.BroadcastToHost(sessionCode, hub.Message{
+		Type: hub.MsgAnswerCount,
+		Payload: map[string]any{
+			"answered": int(answeredCount),
+			"total":    playerCount,
+		},
+	})
+
+	if playerCount > 0 && int(answeredCount) >= playerCount {
+		e.cancelTimer(sessionCode)
+		go func() {
+			bgCtx := context.Background()
+			if err := e.triggerReveal(bgCtx, sessionCode); err != nil {
+				slog.Error("engine: triggerReveal failed", "error", err, "session", sessionCode)
+			}
+		}()
+	}
+
+	return nil
+}
+
 // NextQuestion advances the game to the next question or to game_over.
 // Called by the host from the leaderboard screen.
 func (e *Engine) NextQuestion(ctx context.Context, sessionCode string) error {
@@ -339,12 +406,22 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 	}
 	q := questions[state.CurrentIndex]
 
-	// Find correct option.
+	isOrdering := q.Type == string(models.QTypeOrdering)
+
+	// Find correct option (for non-ordering types).
 	var correctOptionID string
-	for _, opt := range q.Options {
-		if opt.IsCorrect {
-			correctOptionID = opt.ID
-			break
+	var correctOrder []string
+	if isOrdering {
+		// For ordering, correct order is defined by sort_order of options.
+		for _, opt := range q.Options {
+			correctOrder = append(correctOrder, opt.ID)
+		}
+	} else {
+		for _, opt := range q.Options {
+			if opt.IsCorrect {
+				correctOptionID = opt.ID
+				break
+			}
 		}
 	}
 
@@ -358,19 +435,27 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 		if err := json.Unmarshal([]byte(rawAns), &ans); err != nil {
 			continue
 		}
-		isCorrect := ans.OptionID == correctOptionID
-		points := 0
-		if isCorrect {
+
+		var isCorrect bool
+		var points int
+
+		if isOrdering {
+			// Ordering: partial credit based on correct positions.
+			correctPositions := CountCorrectPositions(ans.OptionIDs, correctOrder)
+			isCorrect = correctPositions == len(correctOrder)
 			elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
-			points = CalculatePoints(elapsed, q.TimeLimit)
+			points = CalculateOrderingPoints(correctPositions, len(correctOrder), elapsed, q.TimeLimit)
+		} else {
+			// MC / TF / Image: binary correct/incorrect.
+			isCorrect = ans.OptionID == correctOptionID
+			if isCorrect {
+				elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
+				points = CalculatePoints(elapsed, q.TimeLimit)
+			}
 		}
 
 		// Persist to DB.
 		playerUUID, err := uuid.Parse(playerID)
-		if err != nil {
-			continue
-		}
-		optionUUID, err := uuid.Parse(ans.OptionID)
 		if err != nil {
 			continue
 		}
@@ -383,15 +468,33 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 			continue
 		}
 
-		_, dbErr := e.db.Exec(ctx,
-			`INSERT INTO game_answers (id, session_id, player_id, question_id, option_id, answered_at, is_correct, points)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			 ON CONFLICT (session_id, player_id, question_id) DO NOTHING`,
-			uuid.New(), sessionUUID, playerUUID, questionUUID, optionUUID,
-			ans.AnsweredAt, isCorrect, points,
-		)
-		if dbErr != nil {
-			slog.Error("engine: insert answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
+		if isOrdering {
+			answerDataJSON, _ := json.Marshal(ans.OptionIDs)
+			_, dbErr := e.db.Exec(ctx,
+				`INSERT INTO game_answers (id, session_id, player_id, question_id, option_id, answer_data, answered_at, is_correct, points)
+				 VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8)
+				 ON CONFLICT (session_id, player_id, question_id) DO NOTHING`,
+				uuid.New(), sessionUUID, playerUUID, questionUUID, answerDataJSON,
+				ans.AnsweredAt, isCorrect, points,
+			)
+			if dbErr != nil {
+				slog.Error("engine: insert ordering answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
+			}
+		} else {
+			optionUUID, err := uuid.Parse(ans.OptionID)
+			if err != nil {
+				continue
+			}
+			_, dbErr := e.db.Exec(ctx,
+				`INSERT INTO game_answers (id, session_id, player_id, question_id, option_id, answered_at, is_correct, points)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				 ON CONFLICT (session_id, player_id, question_id) DO NOTHING`,
+				uuid.New(), sessionUUID, playerUUID, questionUUID, optionUUID,
+				ans.AnsweredAt, isCorrect, points,
+			)
+			if dbErr != nil {
+				slog.Error("engine: insert answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
+			}
 		}
 
 		if points > 0 {
@@ -414,12 +517,18 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 		}
 	}
 
+	revealPayload := map[string]any{
+		"scores": scores,
+	}
+	if isOrdering {
+		revealPayload["correct_order"] = correctOrder
+	} else {
+		revealPayload["correct_option_id"] = correctOptionID
+	}
+
 	e.hub.Broadcast(sessionCode, hub.Message{
-		Type: hub.MsgAnswerReveal,
-		Payload: map[string]any{
-			"correct_option_id": correctOptionID,
-			"scores":            scores,
-		},
+		Type:    hub.MsgAnswerReveal,
+		Payload: revealPayload,
 	})
 
 	// Auto-advance to leaderboard after 3 seconds.
@@ -550,7 +659,7 @@ func (e *Engine) getLeaderboard(ctx context.Context, sessionID string) ([]models
 // loadQuestions fetches questions with options from DB.
 func (e *Engine) loadQuestions(ctx context.Context, quizID string) ([]storedQuestion, error) {
 	rows, err := e.db.Query(ctx,
-		`SELECT id, text, time_limit, "order" FROM questions WHERE quiz_id = $1 ORDER BY "order" ASC`,
+		`SELECT id, text, type, time_limit, "order", COALESCE(image_url, '') FROM questions WHERE quiz_id = $1 ORDER BY "order" ASC`,
 		quizID,
 	)
 	if err != nil {
@@ -561,7 +670,7 @@ func (e *Engine) loadQuestions(ctx context.Context, quizID string) ([]storedQues
 	var questions []storedQuestion
 	for rows.Next() {
 		var q storedQuestion
-		if err := rows.Scan(&q.ID, &q.Text, &q.TimeLimit, &q.Order); err != nil {
+		if err := rows.Scan(&q.ID, &q.Text, &q.Type, &q.TimeLimit, &q.Order, &q.ImageURL); err != nil {
 			return nil, err
 		}
 		questions = append(questions, q)
@@ -569,7 +678,7 @@ func (e *Engine) loadQuestions(ctx context.Context, quizID string) ([]storedQues
 
 	for i := range questions {
 		optRows, err := e.db.Query(ctx,
-			`SELECT id, text, is_correct FROM options WHERE question_id = $1 ORDER BY id`,
+			`SELECT id, text, is_correct, COALESCE(image_url, ''), sort_order FROM options WHERE question_id = $1 ORDER BY sort_order`,
 			questions[i].ID,
 		)
 		if err != nil {
@@ -577,7 +686,7 @@ func (e *Engine) loadQuestions(ctx context.Context, quizID string) ([]storedQues
 		}
 		for optRows.Next() {
 			var opt storedOption
-			if err := optRows.Scan(&opt.ID, &opt.Text, &opt.IsCorrect); err != nil {
+			if err := optRows.Scan(&opt.ID, &opt.Text, &opt.IsCorrect, &opt.ImageURL, &opt.SortOrder); err != nil {
 				optRows.Close()
 				return nil, err
 			}
@@ -620,44 +729,84 @@ func (e *Engine) loadState(ctx context.Context, sessionCode string) (*GameState,
 	return &state, nil
 }
 
+// shuffleOptions returns a copy of options in random order (for ordering questions).
+func shuffleOptions(opts []storedOption) []storedOption {
+	shuffled := make([]storedOption, len(opts))
+	copy(shuffled, opts)
+	// Fisher-Yates shuffle using time-based seed
+	for i := len(shuffled) - 1; i > 0; i-- {
+		j := int(time.Now().UnixNano()) % (i + 1)
+		if j < 0 {
+			j = -j
+		}
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	}
+	return shuffled
+}
+
 // buildQuestionPayload constructs the question broadcast payload.
 // Options do NOT include is_correct (players must not see the answer).
+// For ordering questions, options are shuffled.
 func buildQuestionPayload(q storedQuestion, idx, total int) map[string]any {
-	opts := make([]map[string]string, 0, len(q.Options))
-	for _, o := range q.Options {
-		opts = append(opts, map[string]string{"id": o.ID, "text": o.Text})
+	options := q.Options
+	if q.Type == string(models.QTypeOrdering) {
+		options = shuffleOptions(options)
+	}
+	opts := make([]map[string]any, 0, len(options))
+	for _, o := range options {
+		opt := map[string]any{"id": o.ID, "text": o.Text}
+		if o.ImageURL != "" {
+			opt["image_url"] = o.ImageURL
+		}
+		opts = append(opts, opt)
+	}
+	question := map[string]any{
+		"id":         q.ID,
+		"text":       q.Text,
+		"type":       q.Type,
+		"time_limit": q.TimeLimit,
+		"options":    opts,
+	}
+	if q.ImageURL != "" {
+		question["image_url"] = q.ImageURL
 	}
 	return map[string]any{
 		"question_index":  idx,
 		"total_questions": total,
-		"question": map[string]any{
-			"id":         q.ID,
-			"text":       q.Text,
-			"time_limit": q.TimeLimit,
-			"options":    opts,
-		},
+		"question":        question,
 	}
 }
 
 // BuildHostQuestionPayload is the same as buildQuestionPayload but includes is_correct.
+// For ordering questions, options are in correct order (sort_order).
 func BuildHostQuestionPayload(q storedQuestion, idx, total int) map[string]any {
 	opts := make([]map[string]any, 0, len(q.Options))
 	for _, o := range q.Options {
-		opts = append(opts, map[string]any{
+		opt := map[string]any{
 			"id":         o.ID,
 			"text":       o.Text,
 			"is_correct": o.IsCorrect,
-		})
+		}
+		if o.ImageURL != "" {
+			opt["image_url"] = o.ImageURL
+		}
+		opt["sort_order"] = o.SortOrder
+		opts = append(opts, opt)
+	}
+	question := map[string]any{
+		"id":         q.ID,
+		"text":       q.Text,
+		"type":       q.Type,
+		"time_limit": q.TimeLimit,
+		"options":    opts,
+	}
+	if q.ImageURL != "" {
+		question["image_url"] = q.ImageURL
 	}
 	return map[string]any{
 		"question_index":  idx,
 		"total_questions": total,
-		"question": map[string]any{
-			"id":         q.ID,
-			"text":       q.Text,
-			"time_limit": q.TimeLimit,
-			"options":    opts,
-		},
+		"question":        question,
 	}
 }
 

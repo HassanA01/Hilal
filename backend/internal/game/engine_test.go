@@ -9,6 +9,7 @@ func TestBuildQuestionPayload(t *testing.T) {
 	q := storedQuestion{
 		ID:        "q1",
 		Text:      "What is 2+2?",
+		Type:      "multiple_choice",
 		TimeLimit: 20,
 		Options: []storedOption{
 			{ID: "o1", Text: "3", IsCorrect: false},
@@ -33,7 +34,10 @@ func TestBuildQuestionPayload(t *testing.T) {
 	if inner["id"] != "q1" {
 		t.Errorf("expected id=q1, got %v", inner["id"])
 	}
-	opts, ok := inner["options"].([]map[string]string)
+	if inner["type"] != "multiple_choice" {
+		t.Errorf("expected type=multiple_choice, got %v", inner["type"])
+	}
+	opts, ok := inner["options"].([]map[string]any)
 	if !ok {
 		t.Fatal("options field missing or wrong type")
 	}
@@ -48,6 +52,7 @@ func TestBuildHostQuestionPayload(t *testing.T) {
 	q := storedQuestion{
 		ID:        "q1",
 		Text:      "Capital of France?",
+		Type:      "multiple_choice",
 		TimeLimit: 15,
 		Options: []storedOption{
 			{ID: "o1", Text: "London", IsCorrect: false},

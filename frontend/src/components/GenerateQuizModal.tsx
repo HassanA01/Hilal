@@ -27,7 +27,20 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState("");
+  const [questionTypes, setQuestionTypes] = useState<Record<string, boolean>>({
+    multiple_choice: true,
+    true_false: true,
+    ordering: true,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeTypes = Object.keys(questionTypes).filter((k) => questionTypes[k]);
+
+  function toggleType(key: string) {
+    // Prevent deselecting the last active type
+    if (questionTypes[key] && activeTypes.length <= 1) return;
+    setQuestionTypes((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const inputStyle = {
     background: "rgba(255,255,255,0.06)",
@@ -95,7 +108,7 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
     setLoading(true);
     setLoadingStep("Summoning questions from the stars...");
     try {
-      const data = await generateQuiz({ topic: topic.trim(), question_count: count, context: context.trim() });
+      const data = await generateQuiz({ topic: topic.trim(), question_count: count, context: context.trim(), question_types: activeTypes });
       onGenerated(data);
     } catch (err: unknown) {
       handleError(err);
@@ -116,7 +129,7 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
     const timer = setTimeout(() => setLoadingStep("Generating questions..."), 3000);
 
     try {
-      const data = await generateQuizFromUpload(file, count);
+      const data = await generateQuizFromUpload(file, count, activeTypes);
       onGenerated(data);
     } catch (err: unknown) {
       handleError(err);
@@ -126,6 +139,38 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
       setLoadingStep("");
     }
   }
+
+  const TYPE_LABELS: Record<string, string> = {
+    multiple_choice: "Multiple Choice",
+    true_false: "True / False",
+    ordering: "Ordering",
+  };
+
+  const typeChips = (
+    <div>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.7)" }}>
+        Question types
+      </label>
+      <div className="flex gap-2">
+        {Object.entries(TYPE_LABELS).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggleType(key)}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
+            style={{
+              background: questionTypes[key] ? "rgba(245,200,66,0.2)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${questionTypes[key] ? "rgba(245,200,66,0.5)" : "rgba(255,255,255,0.1)"}`,
+              color: questionTypes[key] ? "#f5c842" : "rgba(255,255,255,0.3)",
+            }}
+            aria-pressed={questionTypes[key]}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   const tabStyle = (active: boolean) => ({
     color: active ? "#f5c842" : "rgba(255,255,255,0.4)",
@@ -245,6 +290,8 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
                       </p>
                     )}
                   </div>
+
+                  {typeChips}
 
                   <div>
                     <label className="block text-sm font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.7)" }}>
@@ -376,6 +423,8 @@ export function GenerateQuizModal({ onClose, onGenerated }: Props) {
                       </p>
                     )}
                   </div>
+
+                  {typeChips}
 
                   {error && (
                     <div className="text-sm rounded-xl px-4 py-3"

@@ -1,11 +1,15 @@
 import { apiClient } from "./client";
 import type { Quiz } from "../types";
 
+import type { QuestionType } from "../types";
+
 export interface QuestionInput {
   text: string;
+  type?: QuestionType;
   time_limit: number;
   order: number;
-  options: { text: string; is_correct: boolean }[];
+  image_url?: string;
+  options: { text: string; is_correct: boolean; image_url?: string; sort_order?: number }[];
 }
 
 export interface QuizInput {

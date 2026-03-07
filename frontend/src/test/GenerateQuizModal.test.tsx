@@ -123,4 +123,42 @@ describe("GenerateQuizModal", () => {
     expect(screen.queryByText("notes.txt")).not.toBeInTheDocument();
     expect(screen.getByText(/drop a file/i)).toBeInTheDocument();
   });
+
+  it("renders question type chips with all active by default", () => {
+    render(<GenerateQuizModal {...defaultProps} />);
+    const mcChip = screen.getByRole("button", { name: "Multiple Choice" });
+    const tfChip = screen.getByRole("button", { name: "True / False" });
+    const ordChip = screen.getByRole("button", { name: "Ordering" });
+    expect(mcChip).toHaveAttribute("aria-pressed", "true");
+    expect(tfChip).toHaveAttribute("aria-pressed", "true");
+    expect(ordChip).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("toggles a question type chip off when clicked", async () => {
+    render(<GenerateQuizModal {...defaultProps} />);
+    const tfChip = screen.getByRole("button", { name: "True / False" });
+    expect(tfChip).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(tfChip);
+    expect(tfChip).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("cannot deselect the last active question type chip", async () => {
+    render(<GenerateQuizModal {...defaultProps} />);
+    // Deselect two of the three
+    await userEvent.click(screen.getByRole("button", { name: "True / False" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ordering" }));
+    // Only MC left — clicking it should have no effect
+    const mcChip = screen.getByRole("button", { name: "Multiple Choice" });
+    expect(mcChip).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(mcChip);
+    expect(mcChip).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows question type chips in upload tab too", async () => {
+    render(<GenerateQuizModal {...defaultProps} />);
+    await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
+    expect(screen.getByRole("button", { name: "Multiple Choice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "True / False" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ordering" })).toBeInTheDocument();
+  });
 });

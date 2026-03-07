@@ -194,12 +194,37 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 			return
 		}
 		questionID, _ := payload["question_id"].(string)
-		optionID, _ := payload["option_id"].(string)
-		if questionID == "" || optionID == "" {
+		if questionID == "" {
 			return
 		}
-		if err := h.engine.SubmitAnswer(ctx, sessionCode, client.ID, questionID, optionID); err != nil {
-			slog.Error("engine.SubmitAnswer failed", "error", err, "session", sessionCode, "player", client.ID)
+
+		// Check for ordering answer (option_ids array) vs single answer (option_id string).
+		if rawIDs, ok := payload["option_ids"]; ok {
+			// Ordering answer
+			idSlice, ok := rawIDs.([]any)
+			if !ok || len(idSlice) == 0 {
+				return
+			}
+			optionIDs := make([]string, 0, len(idSlice))
+			for _, id := range idSlice {
+				s, ok := id.(string)
+				if !ok || s == "" {
+					return
+				}
+				optionIDs = append(optionIDs, s)
+			}
+			if err := h.engine.SubmitOrderingAnswer(ctx, sessionCode, client.ID, questionID, optionIDs); err != nil {
+				slog.Error("engine.SubmitOrderingAnswer failed", "error", err, "session", sessionCode, "player", client.ID)
+			}
+		} else {
+			// Single-option answer (MC, TF, Image)
+			optionID, _ := payload["option_id"].(string)
+			if optionID == "" {
+				return
+			}
+			if err := h.engine.SubmitAnswer(ctx, sessionCode, client.ID, questionID, optionID); err != nil {
+				slog.Error("engine.SubmitAnswer failed", "error", err, "session", sessionCode, "player", client.ID)
+			}
 		}
 
 	case hub.MsgNextQuestion:
