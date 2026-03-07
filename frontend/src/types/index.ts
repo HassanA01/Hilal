@@ -216,6 +216,33 @@ export interface PlatformOverview {
   total_players: number;
   total_answers: number;
   avg_players_per_game: number;
+  avg_game_duration_seconds: number;
+  avg_questions_per_quiz: number;
+  game_completion_rate: number;
+  games_this_week: number;
+  games_last_week: number;
+  games_wow_change: number;
+  players_this_week: number;
+  players_last_week: number;
+  players_wow_change: number;
+}
+
+export interface FunnelStage {
+  label: string;
+  count: number;
+  pct: number;
+}
+
+export interface DistributionBucket {
+  label: string;
+  count: number;
+}
+
+export interface PlatformKPIs {
+  funnel: FunnelStage[];
+  player_count_distribution: DistributionBucket[];
+  admin_retention_7d: number;
+  admin_retention_30d: number;
 }
 
 export interface PlatformGrowthPoint {

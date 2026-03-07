@@ -6,10 +6,13 @@ import {
   BookOpen,
   Gamepad2,
   Users,
-  MessageSquare,
   UserCheck,
   Clock,
   Calendar,
+  TrendingUp,
+  CheckCircle,
+  HelpCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   AreaChart,
@@ -26,9 +29,14 @@ import {
   fetchPlatformGrowth,
   fetchPlatformAdmins,
   fetchPlatformEngagement,
+  fetchPlatformKPIs,
 } from "../api/platform";
 import { useAuthStore } from "../stores/authStore";
-import type { PlatformOverview, PeakHourBucket } from "../types";
+import type {
+  PeakHourBucket,
+  FunnelStage,
+  DistributionBucket,
+} from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -142,6 +150,96 @@ function ToggleGroup({
 }
 
 // ---------------------------------------------------------------------------
+// WoW change badge
+// ---------------------------------------------------------------------------
+
+function WoWBadge({ change }: { change: number }) {
+  if (change === 0) return null;
+  const isUp = change > 0;
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full ml-2"
+      style={{
+        background: isUp ? "rgba(76,175,80,0.15)" : "rgba(244,67,54,0.15)",
+        color: isUp ? "#4caf50" : "#f44336",
+      }}
+    >
+      {isUp ? "\u2191" : "\u2193"} {Math.abs(change).toFixed(1)}%
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Conversion Funnel
+// ---------------------------------------------------------------------------
+
+function FunnelChart({ stages }: { stages: FunnelStage[] }) {
+  return (
+    <div className="space-y-2">
+      {stages.map((stage, i) => (
+        <div key={stage.label} className="flex items-center gap-3">
+          <div className="w-28 text-right">
+            <p className="text-xs font-medium text-white">{stage.label}</p>
+          </div>
+          <div className="flex-1 relative">
+            <div
+              className="h-8 rounded-lg flex items-center px-3 transition-all"
+              style={{
+                width: `${Math.max(stage.pct, 5)}%`,
+                background: `rgba(245,200,66,${0.1 + (1 - stage.pct / 100) * 0.3})`,
+                border: "1px solid rgba(245,200,66,0.2)",
+              }}
+            >
+              <span className="text-xs font-bold text-white whitespace-nowrap">
+                {stage.count.toLocaleString()} ({stage.pct.toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+          {i > 0 && (
+            <span className="text-xs w-16 text-right" style={{ color: "#f44336" }}>
+              -{(stages[i - 1].pct - stage.pct).toFixed(1)}%
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Player Count Distribution
+// ---------------------------------------------------------------------------
+
+function DistributionBars({ data }: { data: DistributionBucket[] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  return (
+    <div className="space-y-2">
+      {data.map((d) => (
+        <div key={d.label} className="flex items-center gap-3">
+          <div className="w-12 text-right">
+            <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
+              {d.label}
+            </span>
+          </div>
+          <div className="flex-1">
+            <div
+              className="h-6 rounded-md flex items-center px-2"
+              style={{
+                width: `${Math.max((d.count / max) * 100, 3)}%`,
+                background: "rgba(245,200,66,0.25)",
+                border: "1px solid rgba(245,200,66,0.15)",
+              }}
+            >
+              <span className="text-xs font-bold text-white">{d.count}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Custom Recharts tooltip
 // ---------------------------------------------------------------------------
 
@@ -186,22 +284,21 @@ function GrowthTooltip({
 // ---------------------------------------------------------------------------
 
 const OVERVIEW_CARDS: {
-  key: keyof PlatformOverview;
+  key: string;
   label: string;
   icon: React.ElementType;
   decimal?: number;
+  wow?: string;
+  format?: "duration" | "percent";
 }[] = [
-  { key: "total_admins", label: "Total Admins", icon: Shield },
+  { key: "total_games", label: "Total Games", icon: Gamepad2, wow: "games_wow_change" },
+  { key: "total_players", label: "Total Players", icon: Users, wow: "players_wow_change" },
+  { key: "avg_players_per_game", label: "Avg Players / Game", icon: UserCheck, decimal: 1 },
+  { key: "avg_game_duration_seconds", label: "Avg Game Duration", icon: Clock, format: "duration" },
   { key: "total_quizzes", label: "Total Quizzes", icon: BookOpen },
-  { key: "total_games", label: "Total Games", icon: Gamepad2 },
-  { key: "total_players", label: "Total Players", icon: Users },
-  { key: "total_answers", label: "Total Answers", icon: MessageSquare },
-  {
-    key: "avg_players_per_game",
-    label: "Avg Players / Game",
-    icon: UserCheck,
-    decimal: 1,
-  },
+  { key: "total_admins", label: "Total Admins", icon: Shield },
+  { key: "game_completion_rate", label: "Completion Rate", icon: CheckCircle, format: "percent" },
+  { key: "avg_questions_per_quiz", label: "Avg Questions / Quiz", icon: HelpCircle, decimal: 1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -273,6 +370,16 @@ export function PlatformDashboardPage() {
   });
 
   const {
+    data: kpis,
+    isLoading: kpisLoading,
+    isError: kpisError,
+  } = useQuery({
+    queryKey: ["platform", "kpis"],
+    queryFn: fetchPlatformKPIs,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const {
     data: growth,
     isLoading: growthLoading,
     isError: growthError,
@@ -326,6 +433,16 @@ export function PlatformDashboardPage() {
   }
 
   // -----------------------------------------------------------------------
+  // Card value formatter
+  // -----------------------------------------------------------------------
+
+  function formatCardValue(card: (typeof OVERVIEW_CARDS)[number], value: number): string {
+    if (card.format === "duration") return formatDuration(value);
+    if (card.format === "percent") return `${fmt(value * 100, 1)}%`;
+    return fmt(value, card.decimal ?? 0);
+  }
+
+  // -----------------------------------------------------------------------
   // Render
   // -----------------------------------------------------------------------
 
@@ -351,9 +468,13 @@ export function PlatformDashboardPage() {
 
       {overview && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {OVERVIEW_CARDS.map((card, i) => {
               const Icon = card.icon;
+              const value = (overview as unknown as Record<string, number>)[card.key] ?? 0;
+              const wowChange = card.wow
+                ? (overview as unknown as Record<string, number>)[card.wow] ?? 0
+                : undefined;
               return (
                 <motion.div
                   key={card.key}
@@ -367,12 +488,21 @@ export function PlatformDashboardPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
                 >
-                  <Icon
-                    className="w-5 h-5 mb-2"
-                    style={{ color: "#f5c842" }}
-                  />
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon
+                      className="w-5 h-5"
+                      style={{ color: "#f5c842" }}
+                    />
+                    {card.wow && (
+                      <TrendingUp
+                        className="w-3.5 h-3.5"
+                        style={{ color: "rgba(255,255,255,0.3)" }}
+                      />
+                    )}
+                  </div>
                   <p className="text-2xl sm:text-3xl font-black text-white leading-tight">
-                    {fmt(overview[card.key], card.decimal ?? 0)}
+                    {formatCardValue(card, value)}
+                    {wowChange !== undefined && <WoWBadge change={wowChange} />}
                   </p>
                   <p
                     className="text-xs mt-1"
@@ -386,13 +516,138 @@ export function PlatformDashboardPage() {
           </div>
 
           {/* ============================================================== */}
-          {/* 2. Platform Growth Chart                                       */}
+          {/* 2. Conversion Funnel                                           */}
+          {/* ============================================================== */}
+
+          {kpisLoading && <LoadingDots />}
+          {kpisError && (
+            <ErrorBox message="Failed to load platform KPIs." />
+          )}
+
+          {kpis && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <SectionCard className="mb-8">
+                <h3 className="text-lg font-bold text-white mb-5">
+                  Conversion Funnel
+                </h3>
+                {kpis.funnel && kpis.funnel.length > 0 ? (
+                  <FunnelChart stages={kpis.funnel} />
+                ) : (
+                  <p
+                    className="text-center text-sm py-8"
+                    style={{ color: "rgba(255,255,255,0.4)" }}
+                  >
+                    No funnel data available.
+                  </p>
+                )}
+              </SectionCard>
+            </motion.div>
+          )}
+
+          {/* ============================================================== */}
+          {/* 3. Player Count Distribution + Admin Retention                  */}
+          {/* ============================================================== */}
+
+          {kpis && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {/* Player Count Distribution */}
+                <SectionCard>
+                  <h3 className="text-lg font-bold text-white mb-5">
+                    Players per Game
+                  </h3>
+                  {kpis.player_count_distribution &&
+                  kpis.player_count_distribution.length > 0 ? (
+                    <DistributionBars data={kpis.player_count_distribution} />
+                  ) : (
+                    <p
+                      className="text-center text-sm py-8"
+                      style={{ color: "rgba(255,255,255,0.4)" }}
+                    >
+                      No distribution data available.
+                    </p>
+                  )}
+                </SectionCard>
+
+                {/* Admin Retention */}
+                <SectionCard>
+                  <h3 className="text-lg font-bold text-white mb-5">
+                    Admin Retention
+                  </h3>
+                  <div className="flex flex-wrap gap-4">
+                    <div
+                      className="inline-flex items-center gap-3 rounded-xl px-4 py-3"
+                      style={{
+                        background: "rgba(245,200,66,0.08)",
+                        border: "1px solid rgba(245,200,66,0.15)",
+                      }}
+                    >
+                      <RefreshCw
+                        className="w-5 h-5"
+                        style={{ color: "#f5c842" }}
+                      />
+                      <div>
+                        <p
+                          className="text-xs"
+                          style={{
+                            color: "rgba(255,255,255,0.45)",
+                          }}
+                        >
+                          7-day Retention
+                        </p>
+                        <p className="text-xl font-black text-white">
+                          {fmt(kpis.admin_retention_7d * 100, 1)}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className="inline-flex items-center gap-3 rounded-xl px-4 py-3"
+                      style={{
+                        background: "rgba(245,200,66,0.08)",
+                        border: "1px solid rgba(245,200,66,0.15)",
+                      }}
+                    >
+                      <RefreshCw
+                        className="w-5 h-5"
+                        style={{ color: "#f5c842" }}
+                      />
+                      <div>
+                        <p
+                          className="text-xs"
+                          style={{
+                            color: "rgba(255,255,255,0.45)",
+                          }}
+                        >
+                          30-day Retention
+                        </p>
+                        <p className="text-xl font-black text-white">
+                          {fmt(kpis.admin_retention_30d * 100, 1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </SectionCard>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ============================================================== */}
+          {/* 4. Platform Growth Chart                                       */}
           {/* ============================================================== */}
 
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.25 }}
           >
             <SectionCard className="mb-8">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
@@ -558,7 +813,7 @@ export function PlatformDashboardPage() {
           </motion.div>
 
           {/* ============================================================== */}
-          {/* 3. Admin Activity Table                                        */}
+          {/* 5. Admin Activity Table                                        */}
           {/* ============================================================== */}
 
           <motion.div
@@ -687,7 +942,7 @@ export function PlatformDashboardPage() {
           </motion.div>
 
           {/* ============================================================== */}
-          {/* 4. Engagement                                                  */}
+          {/* 6. Engagement                                                  */}
           {/* ============================================================== */}
 
           <motion.div

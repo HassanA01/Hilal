@@ -5,6 +5,7 @@ import type {
   PlatformAdminStats,
   PlatformAIStats,
   PlatformEngagement,
+  PlatformKPIs,
 } from "../types";
 
 export async function fetchPlatformOverview(): Promise<PlatformOverview> {
@@ -43,5 +44,10 @@ export async function fetchPlatformEngagement(): Promise<PlatformEngagement> {
   const { data } = await apiClient.get<PlatformEngagement>(
     "/platform/engagement",
   );
+  return data;
+}
+
+export async function fetchPlatformKPIs(): Promise<PlatformKPIs> {
+  const { data } = await apiClient.get<PlatformKPIs>("/platform/kpis");
   return data;
 }

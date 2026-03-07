@@ -77,6 +77,17 @@ func TestPlatformEngagement_Forbidden(t *testing.T) {
 	}
 }
 
+func TestPlatformKPIs_Forbidden(t *testing.T) {
+	h := newTestHandlerWithSuperadmin()
+	req := httptest.NewRequest(http.MethodGet, "/platform/kpis", nil)
+	req = withAdminID(req, "test-admin-id")
+	w := httptest.NewRecorder()
+	h.PlatformKPIs(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d — body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestPlatformEndpoints_NoSuperadminConfigured(t *testing.T) {
 	// When SUPERADMIN_EMAIL is empty, all platform endpoints should return 403
 	h := newTestHandler()
@@ -89,6 +100,7 @@ func TestPlatformEndpoints_NoSuperadminConfigured(t *testing.T) {
 		{"admins", h.PlatformAdmins},
 		{"ai-stats", h.PlatformAIStats},
 		{"engagement", h.PlatformEngagement},
+		{"kpis", h.PlatformKPIs},
 	}
 
 	for _, ep := range endpoints {
@@ -145,6 +157,21 @@ func TestPlatformResponseTypes_JSONShape(t *testing.T) {
 		{"ai stats", platformAIStatsResponse{}, []string{"total_quizzes"}},
 		{"engagement", platformEngagementResponse{PeakHours: []peakHourBucket{}}, []string{
 			"peak_hours", "avg_game_duration_seconds", "total_active_days",
+		}},
+		{"overview extended", platformOverviewResponse{}, []string{
+			"avg_game_duration_seconds", "avg_questions_per_quiz",
+			"game_completion_rate", "games_this_week", "games_last_week",
+			"games_wow_change", "players_this_week", "players_last_week",
+			"players_wow_change",
+		}},
+		{"funnel stage", funnelStage{}, []string{"label", "count", "pct"}},
+		{"distribution bucket", distributionBucket{}, []string{"label", "count"}},
+		{"kpi response", platformKPIResponse{
+			Funnel:          []funnelStage{},
+			PlayerCountDist: []distributionBucket{},
+		}, []string{
+			"funnel", "player_count_distribution",
+			"admin_retention_7d", "admin_retention_30d",
 		}},
 	}
 

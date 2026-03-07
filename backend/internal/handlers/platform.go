@@ -33,12 +33,21 @@ func (h *Handler) isSuperAdmin(ctx context.Context) bool {
 // ---------------------------------------------------------------------------
 
 type platformOverviewResponse struct {
-	TotalAdmins       int     `json:"total_admins"`
-	TotalQuizzes      int     `json:"total_quizzes"`
-	TotalGames        int     `json:"total_games"`
-	TotalPlayers      int     `json:"total_players"`
-	TotalAnswers      int     `json:"total_answers"`
-	AvgPlayersPerGame float64 `json:"avg_players_per_game"`
+	TotalAdmins         int     `json:"total_admins"`
+	TotalQuizzes        int     `json:"total_quizzes"`
+	TotalGames          int     `json:"total_games"`
+	TotalPlayers        int     `json:"total_players"`
+	TotalAnswers        int     `json:"total_answers"`
+	AvgPlayersPerGame   float64 `json:"avg_players_per_game"`
+	AvgGameDurationSec  float64 `json:"avg_game_duration_seconds"`
+	AvgQuestionsPerQuiz float64 `json:"avg_questions_per_quiz"`
+	GameCompletionRate  float64 `json:"game_completion_rate"`
+	GamesThisWeek       int     `json:"games_this_week"`
+	GamesLastWeek       int     `json:"games_last_week"`
+	GamesWoWChange      float64 `json:"games_wow_change"`
+	PlayersThisWeek     int     `json:"players_this_week"`
+	PlayersLastWeek     int     `json:"players_last_week"`
+	PlayersWoWChange    float64 `json:"players_wow_change"`
 }
 
 type platformGrowthPoint struct {
@@ -66,6 +75,24 @@ type platformEngagementResponse struct {
 	PeakHours       []peakHourBucket `json:"peak_hours"`
 	AvgGameDuration float64          `json:"avg_game_duration_seconds"`
 	TotalActiveDays int              `json:"total_active_days"`
+}
+
+type funnelStage struct {
+	Label string  `json:"label"`
+	Count int     `json:"count"`
+	Pct   float64 `json:"pct"`
+}
+
+type distributionBucket struct {
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+type platformKPIResponse struct {
+	Funnel            []funnelStage        `json:"funnel"`
+	PlayerCountDist   []distributionBucket `json:"player_count_distribution"`
+	AdminRetention7d  float64              `json:"admin_retention_7d"`
+	AdminRetention30d float64              `json:"admin_retention_30d"`
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +131,60 @@ func (h *Handler) PlatformOverview(w http.ResponseWriter, r *http.Request) {
 		slog.Error("platform overview query failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load platform overview")
 		return
+	}
+
+	// Avg game duration (non-fatal)
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (gs.ended_at - gs.started_at))), 0)
+		FROM game_sessions gs
+		WHERE gs.started_at IS NOT NULL AND gs.ended_at IS NOT NULL
+	`).Scan(&resp.AvgGameDurationSec); err != nil {
+		slog.Error("platform overview avg duration query failed", "error", err)
+	}
+
+	// Avg questions per quiz (non-fatal)
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COALESCE(AVG(qc.cnt)::float, 0)
+		FROM (SELECT quiz_id, COUNT(*) AS cnt FROM questions GROUP BY quiz_id) qc
+	`).Scan(&resp.AvgQuestionsPerQuiz); err != nil {
+		slog.Error("platform overview avg questions query failed", "error", err)
+	}
+
+	// Game completion rate (finished / total where started) (non-fatal)
+	var finished, started int
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_sessions WHERE status = 'finished'`).Scan(&finished); err != nil {
+		slog.Error("platform overview finished games query failed", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_sessions WHERE started_at IS NOT NULL`).Scan(&started); err != nil {
+		slog.Error("platform overview started games query failed", "error", err)
+	}
+	if started > 0 {
+		resp.GameCompletionRate = float64(finished) / float64(started)
+	}
+
+	// WoW stats (non-fatal)
+	now := time.Now()
+	thisWeekStart := now.AddDate(0, 0, -7)
+	lastWeekStart := now.AddDate(0, 0, -14)
+
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_sessions WHERE created_at >= $1`, thisWeekStart).Scan(&resp.GamesThisWeek); err != nil {
+		slog.Error("platform overview games this week query failed", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_sessions WHERE created_at >= $1 AND created_at < $2`, lastWeekStart, thisWeekStart).Scan(&resp.GamesLastWeek); err != nil {
+		slog.Error("platform overview games last week query failed", "error", err)
+	}
+	if resp.GamesLastWeek > 0 {
+		resp.GamesWoWChange = (float64(resp.GamesThisWeek) - float64(resp.GamesLastWeek)) / float64(resp.GamesLastWeek) * 100
+	}
+
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_players gp JOIN game_sessions gs ON gs.id = gp.session_id WHERE gs.created_at >= $1`, thisWeekStart).Scan(&resp.PlayersThisWeek); err != nil {
+		slog.Error("platform overview players this week query failed", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM game_players gp JOIN game_sessions gs ON gs.id = gp.session_id WHERE gs.created_at >= $1 AND gs.created_at < $2`, lastWeekStart, thisWeekStart).Scan(&resp.PlayersLastWeek); err != nil {
+		slog.Error("platform overview players last week query failed", "error", err)
+	}
+	if resp.PlayersLastWeek > 0 {
+		resp.PlayersWoWChange = (float64(resp.PlayersThisWeek) - float64(resp.PlayersLastWeek)) / float64(resp.PlayersLastWeek) * 100
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -462,6 +543,130 @@ func (h *Handler) PlatformEngagement(w http.ResponseWriter, r *http.Request) {
 		PeakHours:       peakHours,
 		AvgGameDuration: avgDuration,
 		TotalActiveDays: totalActiveDays,
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ---------------------------------------------------------------------------
+// 6. PlatformKPIs — GET /platform/kpis
+// ---------------------------------------------------------------------------
+
+func (h *Handler) PlatformKPIs(w http.ResponseWriter, r *http.Request) {
+	if !h.isSuperAdmin(r.Context()) {
+		writeError(w, http.StatusForbidden, "superadmin access required")
+		return
+	}
+
+	var resp platformKPIResponse
+
+	// --- Conversion Funnel ---
+	var totalAdmins, adminsWithQuiz, adminsWithGame, adminsWithPlayers int
+
+	if err := h.db.QueryRow(r.Context(), "SELECT COUNT(*) FROM admins").Scan(&totalAdmins); err != nil {
+		slog.Error("platform funnel: count admins", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), "SELECT COUNT(DISTINCT admin_id) FROM quizzes").Scan(&adminsWithQuiz); err != nil {
+		slog.Error("platform funnel: admins with quiz", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COUNT(DISTINCT q.admin_id)
+		FROM game_sessions gs JOIN quizzes q ON q.id = gs.quiz_id
+	`).Scan(&adminsWithGame); err != nil {
+		slog.Error("platform funnel: admins with game", "error", err)
+	}
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COUNT(DISTINCT q.admin_id)
+		FROM game_sessions gs
+		JOIN quizzes q ON q.id = gs.quiz_id
+		WHERE (SELECT COUNT(*) FROM game_players gp WHERE gp.session_id = gs.id) >= 2
+	`).Scan(&adminsWithPlayers); err != nil {
+		slog.Error("platform funnel: admins with players", "error", err)
+	}
+
+	pct := func(n, total int) float64 {
+		if total == 0 {
+			return 0
+		}
+		return float64(n) / float64(total) * 100
+	}
+
+	resp.Funnel = []funnelStage{
+		{Label: "Signed Up", Count: totalAdmins, Pct: 100},
+		{Label: "Created Quiz", Count: adminsWithQuiz, Pct: pct(adminsWithQuiz, totalAdmins)},
+		{Label: "Hosted Game", Count: adminsWithGame, Pct: pct(adminsWithGame, totalAdmins)},
+		{Label: "Got 2+ Players", Count: adminsWithPlayers, Pct: pct(adminsWithPlayers, totalAdmins)},
+	}
+
+	// --- Player Count Distribution ---
+	// Buckets: 1, 2-3, 4-6, 7-10, 10+
+	distQuery := `
+		SELECT
+			CASE
+				WHEN pc = 1 THEN '1'
+				WHEN pc BETWEEN 2 AND 3 THEN '2-3'
+				WHEN pc BETWEEN 4 AND 6 THEN '4-6'
+				WHEN pc BETWEEN 7 AND 10 THEN '7-10'
+				ELSE '10+'
+			END AS bucket,
+			COUNT(*) AS cnt
+		FROM (
+			SELECT gs.id, COUNT(gp.id) AS pc
+			FROM game_sessions gs
+			LEFT JOIN game_players gp ON gp.session_id = gs.id
+			GROUP BY gs.id
+		) sub
+		GROUP BY bucket
+		ORDER BY MIN(pc)
+	`
+	rows, err := h.db.Query(r.Context(), distQuery)
+	if err != nil {
+		slog.Error("platform kpis distribution query failed", "error", err)
+		resp.PlayerCountDist = []distributionBucket{}
+	} else {
+		resp.PlayerCountDist = []distributionBucket{}
+		for rows.Next() {
+			var b distributionBucket
+			if err := rows.Scan(&b.Label, &b.Count); err != nil {
+				break
+			}
+			resp.PlayerCountDist = append(resp.PlayerCountDist, b)
+		}
+		rows.Close()
+	}
+
+	// --- Admin Retention ---
+	now := time.Now()
+
+	// Active in last 7 days = hosted a game or created a quiz
+	var active7d int
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COUNT(DISTINCT a.id) FROM admins a
+		WHERE EXISTS (
+			SELECT 1 FROM quizzes q
+			JOIN game_sessions gs ON gs.quiz_id = q.id
+			WHERE q.admin_id = a.id AND gs.created_at >= $1
+		)
+	`, now.AddDate(0, 0, -7)).Scan(&active7d); err != nil {
+		slog.Error("platform kpis: 7d retention query", "error", err)
+	}
+	if totalAdmins > 0 {
+		resp.AdminRetention7d = float64(active7d) / float64(totalAdmins) * 100
+	}
+
+	var active30d int
+	if err := h.db.QueryRow(r.Context(), `
+		SELECT COUNT(DISTINCT a.id) FROM admins a
+		WHERE EXISTS (
+			SELECT 1 FROM quizzes q
+			JOIN game_sessions gs ON gs.quiz_id = q.id
+			WHERE q.admin_id = a.id AND gs.created_at >= $1
+		)
+	`, now.AddDate(0, 0, -30)).Scan(&active30d); err != nil {
+		slog.Error("platform kpis: 30d retention query", "error", err)
+	}
+	if totalAdmins > 0 {
+		resp.AdminRetention30d = float64(active30d) / float64(totalAdmins) * 100
 	}
 
 	writeJSON(w, http.StatusOK, resp)

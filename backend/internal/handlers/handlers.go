@@ -92,6 +92,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/platform/admins", h.PlatformAdmins)
 			r.Get("/platform/ai-stats", h.PlatformAIStats)
 			r.Get("/platform/engagement", h.PlatformEngagement)
+			r.Get("/platform/kpis", h.PlatformKPIs)
 		})
 
 		// Uploaded images (public — players need to see them)
