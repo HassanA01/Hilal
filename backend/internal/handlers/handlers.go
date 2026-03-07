@@ -85,6 +85,14 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/analytics/quizzes/{quizID}/questions", h.AnalyticsQuizQuestions)
 			r.Get("/analytics/players", h.AnalyticsTopPlayers)
 			r.Get("/analytics/engagement", h.AnalyticsEngagement)
+
+			// Platform metrics (superadmin only — handler-level auth check)
+			r.Get("/platform/overview", h.PlatformOverview)
+			r.Get("/platform/growth", h.PlatformGrowth)
+			r.Get("/platform/admins", h.PlatformAdmins)
+			r.Get("/platform/ai-stats", h.PlatformAIStats)
+			r.Get("/platform/engagement", h.PlatformEngagement)
+			r.Get("/platform/kpis", h.PlatformKPIs)
 		})
 
 		// Uploaded images (public — players need to see them)

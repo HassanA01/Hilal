@@ -5,7 +5,8 @@ import type { Admin } from "../types";
 interface AuthState {
   token: string | null;
   admin: Admin | null;
-  setAuth: (token: string, admin: Admin) => void;
+  isSuperadmin: boolean;
+  setAuth: (token: string, admin: Admin, isSuperadmin: boolean) => void;
   clearAuth: () => void;
   isAuthenticated: () => boolean;
 }
@@ -15,13 +16,14 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       token: null,
       admin: null,
-      setAuth: (token, admin) => set({ token, admin }),
-      clearAuth: () => set({ token: null, admin: null }),
+      isSuperadmin: false,
+      setAuth: (token, admin, isSuperadmin) => set({ token, admin, isSuperadmin }),
+      clearAuth: () => set({ token: null, admin: null, isSuperadmin: false }),
       isAuthenticated: () => !!get().token,
     }),
     {
       name: "hilal-auth",
-      partialize: (state) => ({ token: state.token, admin: state.admin }),
+      partialize: (state) => ({ token: state.token, admin: state.admin, isSuperadmin: state.isSuperadmin }),
     }
   )
 );

@@ -18,6 +18,7 @@ type Config struct {
 	AnthropicAPIKey    string
 	AIRateLimitPerHour int
 	UploadsDir         string
+	SuperadminEmail    string
 }
 
 func Load() *Config {
@@ -42,6 +43,7 @@ func Load() *Config {
 		AnthropicAPIKey:    anthropicKey,
 		AIRateLimitPerHour: aiRateLimit,
 		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
+		SuperadminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 	}
 }
 

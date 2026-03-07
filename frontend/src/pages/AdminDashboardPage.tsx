@@ -6,6 +6,7 @@ import { useAuthStore } from "../stores/authStore";
 export function AdminDashboardPage() {
   const navigate = useNavigate();
   const { admin, clearAuth } = useAuthStore();
+  const isSuperadmin = useAuthStore((s) => s.isSuperadmin);
 
   function handleLogout() {
     clearAuth();
@@ -66,6 +67,18 @@ export function AdminDashboardPage() {
                 : { color: "#f5c842" }}>
               Analytics
             </NavLink>
+            {isSuperadmin && (
+              <NavLink to="/admin/platform"
+                className={({ isActive }) =>
+                  `px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive ? "font-bold" : "opacity-70 hover:opacity-100"
+                  }`}
+                style={({ isActive }) => isActive
+                  ? { background: "#f5c842", color: "#1a0a2e" }
+                  : { color: "#f5c842" }}>
+                Platform
+              </NavLink>
+            )}
           </nav>
         </div>
 
