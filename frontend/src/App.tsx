@@ -10,6 +10,7 @@ import { QuizFormPage } from "./pages/QuizFormPage";
 import { HostLobbyPage } from "./pages/HostLobbyPage";
 import { HostGamePage } from "./pages/HostGamePage";
 import { SessionHistoryPage } from "./pages/SessionHistoryPage";
+import { AnalyticsDashboardPage } from "./pages/AnalyticsDashboardPage";
 import { JoinPage } from "./pages/JoinPage";
 import { PlayerLobbyPage } from "./pages/PlayerLobbyPage";
 import { PlayerGamePage } from "./pages/PlayerGamePage";
@@ -58,6 +59,7 @@ function App() {
             <Route path="quizzes/new" element={<QuizFormPage />} />
             <Route path="quizzes/:quizID/edit" element={<QuizFormPage />} />
             <Route path="history" element={<SessionHistoryPage />} />
+            <Route path="analytics" element={<AnalyticsDashboardPage />} />
           </Route>
 
           {/* Full-screen admin game routes — outside dashboard shell to avoid double layout */}
