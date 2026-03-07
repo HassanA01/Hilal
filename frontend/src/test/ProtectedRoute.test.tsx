@@ -13,7 +13,7 @@ const mockAdmin: Admin = {
 
 function renderWithRouter(isAuthed: boolean) {
   if (isAuthed) {
-    useAuthStore.getState().setAuth("tok123", mockAdmin);
+    useAuthStore.getState().setAuth("tok123", mockAdmin, false);
   } else {
     useAuthStore.getState().clearAuth();
   }

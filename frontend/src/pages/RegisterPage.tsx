@@ -30,8 +30,8 @@ export function RegisterPage() {
 
     setLoading(true);
     try {
-      const { token, admin } = await register(email, password);
-      setAuth(token, admin);
+      const { token, admin, is_superadmin } = await register(email, password);
+      setAuth(token, admin, is_superadmin);
       navigate("/admin", { replace: true });
     } catch (err: unknown) {
       const message =

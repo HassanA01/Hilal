@@ -23,8 +23,8 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const { token, admin } = await login(email, password);
-      setAuth(token, admin);
+      const { token, admin, is_superadmin } = await login(email, password);
+      setAuth(token, admin, is_superadmin);
       navigate(from, { replace: true });
     } catch (err: unknown) {
       const message =
