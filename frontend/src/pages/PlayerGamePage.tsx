@@ -2,33 +2,22 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { Check, X } from "lucide-react";
+import { Check, X, ChevronUp, ChevronDown, Send } from "lucide-react";
 import { CrescentIcon } from "../components/icons";
 import { LeaderboardDisplay } from "../components/LeaderboardDisplay";
 import { PodiumScreen } from "../components/PodiumScreen";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { getPlayerResults } from "../api/sessions";
-import type { WsMessage, QuestionPayload, LeaderboardEntry, PodiumEntry } from "../types";
+import type { WsMessage, QuestionPayload, AnswerRevealPayload, LeaderboardEntry, PodiumEntry } from "../types";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE_URL ?? "ws://localhost:8081";
 
 // Answer option colors matching the Figma design
 const OPTION_COLORS = ["#4caf50", "#2196f3", "#ff6b35", "#f44336"];
 
-interface RevealScore {
-  is_correct: boolean;
-  points: number;
-  total_score: number;
-}
-
-interface AnswerRevealPayload {
-  correct_option_id: string;
-  scores: Record<string, RevealScore>;
-}
-
 type GamePhase = "waiting" | "question" | "reveal" | "leaderboard" | "podium" | "ended";
 
-// ── Countdown ring (unchanged logic, Ramadan styling) ───────────────────────
+// ── Countdown ring ───────────────────────────────────────────────────────────
 function CountdownRing({ timeLimit, startedAt }: { timeLimit: number; startedAt: number }) {
   const [remaining, setRemaining] = useState(timeLimit);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -89,6 +78,10 @@ export function PlayerGamePage() {
   const leaderboardRef = useRef<LeaderboardEntry[]>([]);
   const [podium, setPodium] = useState<PodiumEntry[]>([]);
 
+  // Ordering question state
+  const [orderedOptionIds, setOrderedOptionIds] = useState<string[]>([]);
+  const [orderingSubmitted, setOrderingSubmitted] = useState(false);
+
   const { data: playerResults } = useQuery({
     queryKey: ["playerResults", sessionId, playerId],
     queryFn: () => getPlayerResults(sessionId, playerId),
@@ -109,6 +102,9 @@ export function PlayerGamePage() {
           setSelectedOptionId(null);
           setRevealPayload(null);
           setQuestionStartedAt(Date.now());
+          // Initialize ordering state from shuffled options
+          setOrderedOptionIds(p.question.options.map(o => o.id));
+          setOrderingSubmitted(false);
           break;
         }
         case "answer_reveal": {
@@ -147,6 +143,21 @@ export function PlayerGamePage() {
     send({ type: "answer_submitted", payload: { question_id: questionId, option_id: optionId } });
   };
 
+  const handleMoveOption = (index: number, direction: "up" | "down") => {
+    if (orderingSubmitted) return;
+    const newOrder = [...orderedOptionIds];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newOrder.length) return;
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+    setOrderedOptionIds(newOrder);
+  };
+
+  const handleSubmitOrdering = (questionId: string) => {
+    if (orderingSubmitted) return;
+    setOrderingSubmitted(true);
+    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: orderedOptionIds } });
+  };
+
   // ── Ended ────────────────────────────────────────────────────────────────
   if (phase === "ended") {
     return (
@@ -156,7 +167,7 @@ export function PlayerGamePage() {
           <motion.div className="text-center w-full max-w-sm p-8 rounded-3xl"
             style={{ background: "linear-gradient(135deg, rgba(42,20,66,0.9) 0%, rgba(30,15,50,0.95) 100%)", boxShadow: "0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,200,66,0.2)" }}
             initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-            <div className="text-5xl mb-4">🚫</div>
+            <div className="text-5xl mb-4">&#x1F6AB;</div>
             <h1 className="text-2xl font-bold text-white mb-2">Game Ended</h1>
             <p className="mb-6" style={{ color: "rgba(255,255,255,0.6)" }}>The host ended the session early.</p>
             <motion.a href="/join" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -228,7 +239,76 @@ export function PlayerGamePage() {
     const isCorrect = myScore?.is_correct ?? false;
     const points = myScore?.points ?? 0;
     const opts = currentQuestion.question.options;
+    const qType = currentQuestion.question.type ?? "multiple_choice";
+    const isOrdering = qType === "ordering";
 
+    // Ordering reveal
+    if (isOrdering && revealPayload.correct_order) {
+      const correctOrder = revealPayload.correct_order;
+      const optMap = Object.fromEntries(opts.map(o => [o.id, o.text]));
+
+      return (
+        <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
+          <div className="ramadan-pattern" />
+          <div className="relative z-10 min-h-screen flex flex-col px-6 py-8 max-w-md mx-auto">
+            <motion.h3 className="text-lg font-bold text-white mb-4 text-center"
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+              Correct Order
+            </motion.h3>
+            <div className="grid grid-cols-1 gap-3 mb-6">
+              {correctOrder.map((optId, i) => {
+                const playerGotRight = orderedOptionIds[i] === optId;
+                return (
+                  <motion.div key={optId}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{
+                      background: playerGotRight ? "rgba(76,175,80,0.2)" : "rgba(244,67,54,0.15)",
+                      border: `1px solid ${playerGotRight ? "rgba(76,175,80,0.4)" : "rgba(244,67,54,0.3)"}`,
+                    }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.08 }}>
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
+                      style={{ background: playerGotRight ? "rgba(76,175,80,0.3)" : "rgba(244,67,54,0.2)", color: "white" }}>
+                      {i + 1}
+                    </span>
+                    <p className="text-white font-medium flex-1 leading-tight">{optMap[optId] ?? optId}</p>
+                    {playerGotRight ? (
+                      <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    ) : (
+                      <X className="w-5 h-5 text-red-400 flex-shrink-0" />
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Points feedback */}
+            <motion.div className="text-center mb-4"
+              initial={{ opacity: 0, y: 30, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 200 }}>
+              {points > 0 ? (
+                <motion.div className="inline-block px-8 py-4 rounded-2xl"
+                  style={{ background: "linear-gradient(135deg, #f5c842 0%, #ffd700 100%)", boxShadow: "0 10px 40px rgba(245,200,66,0.6)" }}
+                  animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 0.5, repeat: 2 }}>
+                  <p className="font-black text-4xl" style={{ color: "#1a0a2e" }}>+{points}</p>
+                  <p className="text-sm font-medium" style={{ color: "#1a0a2e" }}>Partial credit!</p>
+                </motion.div>
+              ) : (
+                <div className="inline-block px-8 py-4 rounded-2xl"
+                  style={{ background: "rgba(244,67,54,0.2)", border: "2px solid rgba(244,67,54,0.4)" }}>
+                  <p className="font-bold text-xl" style={{ color: "#f44336" }}>No points</p>
+                </div>
+              )}
+            </motion.div>
+
+            <p className="text-center text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>Leaderboard incoming…</p>
+          </div>
+        </div>
+      );
+    }
+
+    // MC / True-False / Image Choice reveal
     return (
       <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
         <div className="ramadan-pattern" />
@@ -255,6 +335,9 @@ export function PlayerGamePage() {
                       style={{ background: isCorrectOpt ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.1)", color: "white" }}>
                       {String.fromCharCode(65 + i)}
                     </div>
+                    {opt.image_url && (
+                      <img src={opt.image_url} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    )}
                     <p className="text-white font-medium flex-1 leading-tight">{opt.text}</p>
                     {isCorrectOpt && (
                       <motion.div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
@@ -302,8 +385,12 @@ export function PlayerGamePage() {
 
   // ── Question ─────────────────────────────────────────────────────────────
   if (phase === "question" && currentQuestion) {
-    const opts = currentQuestion.question.options;
-    const selectedOptIndex = opts.findIndex(o => o.id === selectedOptionId);
+    const q = currentQuestion.question;
+    const opts = q.options;
+    const qType = q.type ?? "multiple_choice";
+    const isOrdering = qType === "ordering";
+    const isTrueFalse = qType === "true_false";
+    const isLockedIn = isOrdering ? orderingSubmitted : !!selectedOptionId;
 
     return (
       <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
@@ -312,7 +399,7 @@ export function PlayerGamePage() {
         <div className="relative z-10 min-h-screen flex flex-col px-6 py-8 max-w-md mx-auto">
           {/* Timer */}
           <motion.div className="flex justify-center mb-6" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
-            <CountdownRing timeLimit={currentQuestion.question.time_limit} startedAt={questionStartedAt} />
+            <CountdownRing timeLimit={q.time_limit} startedAt={questionStartedAt} />
           </motion.div>
 
           {/* Question header */}
@@ -323,18 +410,23 @@ export function PlayerGamePage() {
                 Question {currentQuestion.question_index + 1} of {currentQuestion.total_questions}
               </p>
             </div>
-            <h2 className="text-xl font-bold text-white leading-snug">{currentQuestion.question.text}</h2>
+            <h2 className="text-xl font-bold text-white leading-snug">{q.text}</h2>
+            {q.image_url && (
+              <img src={q.image_url} alt="" className="mt-4 rounded-xl max-h-40 mx-auto object-contain" />
+            )}
+            {isOrdering && (
+              <p className="mt-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Arrange items in the correct order</p>
+            )}
           </motion.div>
 
-          {/* Answer tiles — hidden once an answer is locked in */}
-          {selectedOptionId ? (
+          {/* Locked-in state */}
+          {isLockedIn ? (
             <motion.div
               className="flex flex-col items-center gap-6 py-4"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
             >
-              {/* Neutral locked-in card — no correct/incorrect colours */}
               <div className="w-full rounded-3xl p-8 text-center"
                 style={{
                   background: "rgba(245,200,66,0.08)",
@@ -350,14 +442,20 @@ export function PlayerGamePage() {
                   <Check className="w-8 h-8" style={{ color: "#f5c842" }} />
                 </motion.div>
                 <p className="text-lg font-bold text-white mb-2">Answer locked in!</p>
-                {selectedOptIndex >= 0 && (
-                  <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
-                    {String.fromCharCode(65 + selectedOptIndex)}: {opts[selectedOptIndex].text}
-                  </p>
+                {isOrdering ? (
+                  <p className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Your order has been submitted</p>
+                ) : (
+                  (() => {
+                    const selectedIdx = opts.findIndex(o => o.id === selectedOptionId);
+                    return selectedIdx >= 0 ? (
+                      <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
+                        {String.fromCharCode(65 + selectedIdx)}: {opts[selectedIdx].text}
+                      </p>
+                    ) : null;
+                  })()
                 )}
               </div>
 
-              {/* Pulsing waiting indicator */}
               <div className="flex items-center gap-2">
                 {[0, 1, 2].map(i => (
                   <motion.div key={i} className="w-2 h-2 rounded-full"
@@ -369,13 +467,90 @@ export function PlayerGamePage() {
                 <p className="text-sm ml-1" style={{ color: "rgba(255,255,255,0.5)" }}>Waiting for others…</p>
               </div>
             </motion.div>
+          ) : isOrdering ? (
+            /* ── Ordering question ──────────────────────────────────────── */
+            <div className="flex flex-col gap-2">
+              {orderedOptionIds.map((optId, i) => {
+                const opt = opts.find(o => o.id === optId);
+                if (!opt) return null;
+                return (
+                  <motion.div key={optId}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(245,200,66,0.2)",
+                    }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    layout>
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
+                      style={{ background: "rgba(245,200,66,0.2)", color: "#f5c842" }}>
+                      {i + 1}
+                    </span>
+                    <p className="text-white font-medium flex-1 leading-tight text-sm">{opt.text}</p>
+                    <div className="flex flex-col gap-0.5">
+                      <button onClick={() => handleMoveOption(i, "up")} disabled={i === 0}
+                        className="p-1 rounded disabled:opacity-20 transition-opacity"
+                        style={{ color: "#f5c842" }}>
+                        <ChevronUp className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => handleMoveOption(i, "down")} disabled={i === orderedOptionIds.length - 1}
+                        className="p-1 rounded disabled:opacity-20 transition-opacity"
+                        style={{ color: "#f5c842" }}>
+                        <ChevronDown className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <motion.button
+                onClick={() => handleSubmitOrdering(q.id)}
+                className="mt-4 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+                style={{
+                  background: "linear-gradient(135deg, #f5c842 0%, #ff6b35 100%)",
+                  boxShadow: "0 6px 20px rgba(245,200,66,0.4)",
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}>
+                <Send className="w-5 h-5" />
+                Submit Order
+              </motion.button>
+            </div>
+          ) : isTrueFalse ? (
+            /* ── True / False question ─────────────────────────────────── */
+            <div className="flex flex-col gap-4">
+              {opts.map((opt) => {
+                const isTrue = opt.text.toLowerCase() === "true";
+                const color = isTrue ? "#4caf50" : "#f44336";
+                return (
+                  <motion.button key={opt.id}
+                    onClick={() => handleSelectOption(opt.id, q.id)}
+                    className="px-6 py-5 rounded-2xl text-center overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${color}dd 0%, ${color}bb 100%)`,
+                      boxShadow: `0 6px 20px ${color}40`,
+                    }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}>
+                    <p className="text-2xl font-black text-white">{opt.text}</p>
+                  </motion.button>
+                );
+              })}
+            </div>
           ) : (
+            /* ── MC / Image Choice question ────────────────────────────── */
             <div className="flex flex-col gap-3">
               {opts.map((opt, i) => {
                 const color = OPTION_COLORS[i % 4];
                 return (
                   <motion.button key={opt.id}
-                    onClick={() => handleSelectOption(opt.id, currentQuestion.question.id)}
+                    onClick={() => handleSelectOption(opt.id, q.id)}
                     className="relative px-4 py-3 rounded-2xl text-left overflow-hidden group"
                     style={{
                       background: `linear-gradient(135deg, ${color}dd 0%, ${color}bb 100%)`,
@@ -394,6 +569,9 @@ export function PlayerGamePage() {
                         style={{ background: "rgba(255,255,255,0.25)", color: "white" }}>
                         {String.fromCharCode(65 + i)}
                       </div>
+                      {opt.image_url && (
+                        <img src={opt.image_url} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      )}
                       <p className="text-white font-medium leading-tight">{opt.text}</p>
                     </div>
                   </motion.button>

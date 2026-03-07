@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -45,14 +46,83 @@ type createQuizRequest struct {
 
 type questionInputItem struct {
 	Text      string            `json:"text"`
+	Type      string            `json:"type"`
 	TimeLimit int               `json:"time_limit"`
 	Order     int               `json:"order"`
+	ImageURL  string            `json:"image_url,omitempty"`
 	Options   []optionInputItem `json:"options"`
 }
 
 type optionInputItem struct {
 	Text      string `json:"text"`
 	IsCorrect bool   `json:"is_correct"`
+	ImageURL  string `json:"image_url,omitempty"`
+	SortOrder int    `json:"sort_order"`
+}
+
+// validateQuestionByType checks type-specific constraints for a question.
+func validateQuestionByType(qi questionInputItem) string {
+	qType := qi.Type
+	if qType == "" {
+		qType = string(models.QTypeMultipleChoice)
+	}
+
+	switch models.QuestionType(qType) {
+	case models.QTypeMultipleChoice:
+		if len(qi.Options) < 2 || len(qi.Options) > 4 {
+			return "multiple choice questions must have 2–4 options"
+		}
+		correct := 0
+		for _, o := range qi.Options {
+			if o.IsCorrect {
+				correct++
+			}
+		}
+		if correct != 1 {
+			return "multiple choice questions must have exactly 1 correct option"
+		}
+
+	case models.QTypeTrueFalse:
+		if len(qi.Options) != 2 {
+			return "true/false questions must have exactly 2 options"
+		}
+		correct := 0
+		for _, o := range qi.Options {
+			if o.IsCorrect {
+				correct++
+			}
+		}
+		if correct != 1 {
+			return "true/false questions must have exactly 1 correct option"
+		}
+
+	case models.QTypeImageChoice:
+		if len(qi.Options) < 2 || len(qi.Options) > 4 {
+			return "image choice questions must have 2–4 options"
+		}
+		correct := 0
+		for _, o := range qi.Options {
+			if o.IsCorrect {
+				correct++
+			}
+			if o.ImageURL == "" {
+				return "all options in image choice questions must have an image URL"
+			}
+		}
+		if correct != 1 {
+			return "image choice questions must have exactly 1 correct option"
+		}
+
+	case models.QTypeOrdering:
+		if len(qi.Options) < 2 || len(qi.Options) > 8 {
+			return "ordering questions must have 2–8 items"
+		}
+
+	default:
+		return "invalid question type: " + qType
+	}
+
+	return ""
 }
 
 func (h *Handler) CreateQuiz(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +136,13 @@ func (h *Handler) CreateQuiz(w http.ResponseWriter, r *http.Request) {
 	if req.Title == "" {
 		writeError(w, http.StatusBadRequest, "title is required")
 		return
+	}
+
+	for i, qi := range req.Questions {
+		if errMsg := validateQuestionByType(qi); errMsg != "" {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("question %d: %s", i+1, errMsg))
+			return
+		}
 	}
 
 	quizID := uuid.New()
@@ -93,18 +170,34 @@ func (h *Handler) CreateQuiz(w http.ResponseWriter, r *http.Request) {
 
 	for _, qi := range req.Questions {
 		qID := uuid.New()
+		qType := qi.Type
+		if qType == "" {
+			qType = string(models.QTypeMultipleChoice)
+		}
+		var imgURL *string
+		if qi.ImageURL != "" {
+			imgURL = &qi.ImageURL
+		}
 		_, err = tx.Exec(r.Context(),
-			`INSERT INTO questions (id, quiz_id, text, time_limit, "order") VALUES ($1, $2, $3, $4, $5)`,
-			qID, quizID, qi.Text, qi.TimeLimit, qi.Order,
+			`INSERT INTO questions (id, quiz_id, text, type, time_limit, "order", image_url) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			qID, quizID, qi.Text, qType, qi.TimeLimit, qi.Order, imgURL,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to create question")
 			return
 		}
-		for _, oi := range qi.Options {
+		for idx, oi := range qi.Options {
+			var optImgURL *string
+			if oi.ImageURL != "" {
+				optImgURL = &oi.ImageURL
+			}
+			sortOrder := oi.SortOrder
+			if sortOrder == 0 {
+				sortOrder = idx
+			}
 			_, err = tx.Exec(r.Context(),
-				`INSERT INTO options (id, question_id, text, is_correct) VALUES ($1, $2, $3, $4)`,
-				uuid.New(), qID, oi.Text, oi.IsCorrect,
+				`INSERT INTO options (id, question_id, text, is_correct, image_url, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`,
+				uuid.New(), qID, oi.Text, oi.IsCorrect, optImgURL, sortOrder,
 			)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "failed to create option")
@@ -135,7 +228,7 @@ func (h *Handler) GetQuiz(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(r.Context(),
-		`SELECT id, quiz_id, text, time_limit, "order" FROM questions WHERE quiz_id = $1 ORDER BY "order"`, quizID,
+		`SELECT id, quiz_id, text, type, time_limit, "order", image_url FROM questions WHERE quiz_id = $1 ORDER BY "order"`, quizID,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load questions")
@@ -145,12 +238,12 @@ func (h *Handler) GetQuiz(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var q models.Question
-		if err := rows.Scan(&q.ID, &q.QuizID, &q.Text, &q.TimeLimit, &q.Order); err != nil {
+		if err := rows.Scan(&q.ID, &q.QuizID, &q.Text, &q.Type, &q.TimeLimit, &q.Order, &q.ImageURL); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to scan question")
 			return
 		}
 		optRows, err := h.db.Query(r.Context(),
-			`SELECT id, question_id, text, is_correct FROM options WHERE question_id = $1`, q.ID,
+			`SELECT id, question_id, text, is_correct, image_url, sort_order FROM options WHERE question_id = $1 ORDER BY sort_order`, q.ID,
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to load options")
@@ -158,7 +251,7 @@ func (h *Handler) GetQuiz(w http.ResponseWriter, r *http.Request) {
 		}
 		for optRows.Next() {
 			var o models.Option
-			if err := optRows.Scan(&o.ID, &o.QuestionID, &o.Text, &o.IsCorrect); err != nil {
+			if err := optRows.Scan(&o.ID, &o.QuestionID, &o.Text, &o.IsCorrect, &o.ImageURL, &o.SortOrder); err != nil {
 				optRows.Close()
 				writeError(w, http.StatusInternalServerError, "failed to scan option")
 				return
@@ -194,6 +287,13 @@ func (h *Handler) UpdateQuiz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for i, qi := range req.Questions {
+		if errMsg := validateQuestionByType(qi); errMsg != "" {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("question %d: %s", i+1, errMsg))
+			return
+		}
+	}
+
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to start transaction")
@@ -223,17 +323,33 @@ func (h *Handler) UpdateQuiz(w http.ResponseWriter, r *http.Request) {
 
 	for _, qi := range req.Questions {
 		qID := uuid.New()
+		qType := qi.Type
+		if qType == "" {
+			qType = string(models.QTypeMultipleChoice)
+		}
+		var imgURL *string
+		if qi.ImageURL != "" {
+			imgURL = &qi.ImageURL
+		}
 		if _, err = tx.Exec(r.Context(),
-			`INSERT INTO questions (id, quiz_id, text, time_limit, "order") VALUES ($1, $2, $3, $4, $5)`,
-			qID, quizID, qi.Text, qi.TimeLimit, qi.Order,
+			`INSERT INTO questions (id, quiz_id, text, type, time_limit, "order", image_url) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			qID, quizID, qi.Text, qType, qi.TimeLimit, qi.Order, imgURL,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to update question")
 			return
 		}
-		for _, oi := range qi.Options {
+		for idx, oi := range qi.Options {
+			var optImgURL *string
+			if oi.ImageURL != "" {
+				optImgURL = &oi.ImageURL
+			}
+			sortOrder := oi.SortOrder
+			if sortOrder == 0 {
+				sortOrder = idx
+			}
 			if _, err = tx.Exec(r.Context(),
-				`INSERT INTO options (id, question_id, text, is_correct) VALUES ($1, $2, $3, $4)`,
-				uuid.New(), qID, oi.Text, oi.IsCorrect,
+				`INSERT INTO options (id, question_id, text, is_correct, image_url, sort_order) VALUES ($1, $2, $3, $4, $5, $6)`,
+				uuid.New(), qID, oi.Text, oi.IsCorrect, optImgURL, sortOrder,
 			); err != nil {
 				writeError(w, http.StatusInternalServerError, "failed to update option")
 				return

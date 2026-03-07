@@ -85,6 +85,32 @@ describe("QuizFormPage — create mode", () => {
     expect(screen.queryByRole("button", { name: /add option/i })).not.toBeInTheDocument();
   });
 
+  it("renders question type selector", () => {
+    renderForm();
+    const selector = screen.getByRole("combobox", { name: /question type/i });
+    expect(selector).toBeInTheDocument();
+    expect(selector).toHaveValue("multiple_choice");
+  });
+
+  it("changes to true/false type with 2 locked options", () => {
+    renderForm();
+    const selector = screen.getByRole("combobox", { name: /question type/i });
+    fireEvent.change(selector, { target: { value: "true_false" } });
+    expect(screen.getByDisplayValue("True")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("False")).toBeInTheDocument();
+    // True/false options are disabled
+    expect(screen.getByDisplayValue("True")).toBeDisabled();
+    expect(screen.getByDisplayValue("False")).toBeDisabled();
+  });
+
+  it("changes to ordering type with item placeholders", () => {
+    renderForm();
+    const selector = screen.getByRole("combobox", { name: /question type/i });
+    fireEvent.change(selector, { target: { value: "ordering" } });
+    expect(screen.getByText(/items are in correct order/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Item 1")).toBeInTheDocument();
+  });
+
   it("shows Generate with AI button in create mode", () => {
     renderForm();
     expect(screen.getByRole("button", { name: /generate with ai/i })).toBeInTheDocument();

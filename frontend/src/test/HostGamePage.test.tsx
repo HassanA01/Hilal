@@ -32,6 +32,7 @@ const fakeQuestion = {
     question: {
       id: "q-1",
       text: "What is 2+2?",
+      type: "multiple_choice",
       time_limit: 20,
       options: [
         { id: "o-1", text: "3", is_correct: false },
@@ -58,12 +59,8 @@ describe("HostGamePage", () => {
     renderHostGame();
     act(() => capturedOnMessage!(fakeQuestion));
     expect(screen.getByText("What is 2+2?")).toBeInTheDocument();
-    // Counter is split across spans; verify via textContent of parent.
-    expect(
-      screen.getByText((_, el) =>
-        el?.textContent?.replace(/\s+/g, " ").trim() === "Question 1 / 3",
-      ),
-    ).toBeInTheDocument();
+    // Question counter shown in progress bar
+    expect(screen.getByText("Q1 / 3")).toBeInTheDocument();
     // All 4 options visible
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
@@ -186,6 +183,40 @@ describe("HostGamePage", () => {
     expect(screen.getByText("2400")).toBeInTheDocument();
     // Back to Dashboard is the only action button on the podium screen.
     expect(screen.getByRole("button", { name: /back to dashboard/i })).toBeInTheDocument();
+  });
+
+  it("shows question type badge in top bar", () => {
+    renderHostGame();
+    act(() => capturedOnMessage!(fakeQuestion));
+    expect(screen.getByText("Multiple Choice")).toBeInTheDocument();
+  });
+
+  it("renders ordering question with Correct Order heading", () => {
+    renderHostGame();
+    act(() =>
+      capturedOnMessage!({
+        type: "question",
+        payload: {
+          question_index: 0,
+          total_questions: 2,
+          question: {
+            id: "q-ord",
+            text: "Arrange these events in order",
+            type: "ordering",
+            time_limit: 30,
+            options: [
+              { id: "o-1", text: "Event A", is_correct: false, sort_order: 0 },
+              { id: "o-2", text: "Event B", is_correct: false, sort_order: 1 },
+              { id: "o-3", text: "Event C", is_correct: false, sort_order: 2 },
+            ],
+          },
+        },
+      }),
+    );
+    expect(screen.getByText("Arrange these events in order")).toBeInTheDocument();
+    expect(screen.getByText("Correct Order")).toBeInTheDocument();
+    expect(screen.getByText("Event A")).toBeInTheDocument();
+    expect(screen.getByText("Ordering")).toBeInTheDocument();
   });
 
   it("limits admin podium to top 3 players only", () => {
