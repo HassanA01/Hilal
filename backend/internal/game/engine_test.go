@@ -181,6 +181,93 @@ func TestRevealPayloadFields(t *testing.T) {
 	}
 }
 
+func TestShuffleOptions_ActuallyShuffles(t *testing.T) {
+	// Create options in a fixed order
+	opts := []storedOption{
+		{ID: "a", Text: "A", SortOrder: 0},
+		{ID: "b", Text: "B", SortOrder: 1},
+		{ID: "c", Text: "C", SortOrder: 2},
+		{ID: "d", Text: "D", SortOrder: 3},
+		{ID: "e", Text: "E", SortOrder: 4},
+	}
+
+	// Run shuffle many times and check that the order changes at least once.
+	// With 5 items, the probability of never shuffling in 50 attempts is vanishingly small.
+	sawDifferentOrder := false
+	for range 50 {
+		shuffled := shuffleOptions(opts)
+		if len(shuffled) != len(opts) {
+			t.Fatalf("shuffled length %d != original %d", len(shuffled), len(opts))
+		}
+		for j, o := range shuffled {
+			if o.ID != opts[j].ID {
+				sawDifferentOrder = true
+				break
+			}
+		}
+		if sawDifferentOrder {
+			break
+		}
+	}
+	if !sawDifferentOrder {
+		t.Error("shuffleOptions did not change the order in 50 attempts — shuffle is broken")
+	}
+}
+
+func TestShuffleOptions_DoesNotMutateOriginal(t *testing.T) {
+	opts := []storedOption{
+		{ID: "a", Text: "A"},
+		{ID: "b", Text: "B"},
+		{ID: "c", Text: "C"},
+	}
+	original := make([]storedOption, len(opts))
+	copy(original, opts)
+
+	_ = shuffleOptions(opts)
+
+	for i, o := range opts {
+		if o.ID != original[i].ID {
+			t.Errorf("original slice was mutated at index %d", i)
+		}
+	}
+}
+
+func TestBuildQuestionPayload_OrderingShuffled(t *testing.T) {
+	q := storedQuestion{
+		ID:        "q1",
+		Text:      "Order these",
+		Type:      "ordering",
+		TimeLimit: 30,
+		Options: []storedOption{
+			{ID: "o1", Text: "First", SortOrder: 0},
+			{ID: "o2", Text: "Second", SortOrder: 1},
+			{ID: "o3", Text: "Third", SortOrder: 2},
+			{ID: "o4", Text: "Fourth", SortOrder: 3},
+			{ID: "o5", Text: "Fifth", SortOrder: 4},
+		},
+	}
+
+	// Run multiple times — at least once the order should differ
+	sawDifferent := false
+	for range 50 {
+		payload := buildQuestionPayload(q, 0, 1)
+		inner := payload["question"].(map[string]any)
+		opts := inner["options"].([]map[string]any)
+		for j, opt := range opts {
+			if opt["id"] != q.Options[j].ID {
+				sawDifferent = true
+				break
+			}
+		}
+		if sawDifferent {
+			break
+		}
+	}
+	if !sawDifferent {
+		t.Error("ordering question options were never shuffled in player payload")
+	}
+}
+
 func TestPhaseConstants(t *testing.T) {
 	phases := []GamePhase{PhaseStarting, PhaseQuestion, PhaseReveal, PhaseLeaderboard, PhaseGameOver}
 	seen := make(map[GamePhase]bool)

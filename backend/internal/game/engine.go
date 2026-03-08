@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -733,14 +734,9 @@ func (e *Engine) loadState(ctx context.Context, sessionCode string) (*GameState,
 func shuffleOptions(opts []storedOption) []storedOption {
 	shuffled := make([]storedOption, len(opts))
 	copy(shuffled, opts)
-	// Fisher-Yates shuffle using time-based seed
-	for i := len(shuffled) - 1; i > 0; i-- {
-		j := int(time.Now().UnixNano()) % (i + 1)
-		if j < 0 {
-			j = -j
-		}
+	rand.Shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-	}
+	})
 	return shuffled
 }
 

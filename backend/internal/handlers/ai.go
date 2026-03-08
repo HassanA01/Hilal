@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -420,6 +421,10 @@ func (h *Handler) generateQuizFromText(w http.ResponseWriter, r *http.Request, g
 				writeError(w, http.StatusBadGateway, "AI returned invalid response, please try again")
 				return
 			}
+			// Shuffle options so the correct answer isn't always first
+			rand.Shuffle(len(quiz.Questions[i].Options), func(a, b int) {
+				quiz.Questions[i].Options[a], quiz.Questions[i].Options[b] = quiz.Questions[i].Options[b], quiz.Questions[i].Options[a]
+			})
 
 		case models.QTypeTrueFalse:
 			if len(q.Options) != 2 {
