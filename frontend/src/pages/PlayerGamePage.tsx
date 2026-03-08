@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "motion/react";
-import { Check, X, ChevronUp, ChevronDown, Send } from "lucide-react";
+import { motion, Reorder } from "motion/react";
+import { Check, X, Send, GripVertical } from "lucide-react";
 import { CrescentIcon } from "../components/icons";
 import { LeaderboardDisplay } from "../components/LeaderboardDisplay";
 import { PodiumScreen } from "../components/PodiumScreen";
@@ -65,6 +65,7 @@ function CountdownRing({ timeLimit, startedAt }: { timeLimit: number; startedAt:
 
 export function PlayerGamePage() {
   const { code } = useParams<{ code: string }>();
+  const navigate = useNavigate();
   const playerId = sessionStorage.getItem("player_id") ?? "";
   const sessionId = sessionStorage.getItem("session_id") ?? "";
 
@@ -78,8 +79,8 @@ export function PlayerGamePage() {
   const leaderboardRef = useRef<LeaderboardEntry[]>([]);
   const [podium, setPodium] = useState<PodiumEntry[]>([]);
 
-  // Ordering question state
-  const [orderedOptionIds, setOrderedOptionIds] = useState<string[]>([]);
+  // Ordering question state (drag-to-reorder)
+  const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [orderingSubmitted, setOrderingSubmitted] = useState(false);
 
   const { data: playerResults } = useQuery({
@@ -102,8 +103,8 @@ export function PlayerGamePage() {
           setSelectedOptionId(null);
           setRevealPayload(null);
           setQuestionStartedAt(Date.now());
-          // Initialize ordering state from shuffled options
-          setOrderedOptionIds(p.question.options.map(o => o.id));
+          // Reset ordering state — initialize with shuffled option IDs
+          setOrderedIds(p.question.options.map((o: { id: string }) => o.id));
           setOrderingSubmitted(false);
           break;
         }
@@ -132,8 +133,12 @@ export function PlayerGamePage() {
           if (p.reason === "session_ended") setPhase("ended");
           break;
         }
+        case "player_kicked": {
+          navigate("/join", { state: { kicked: true } });
+          break;
+        }
       }
-    }, []),
+    }, [navigate]),
     enabled: !!code && !!playerId,
   });
 
@@ -143,19 +148,10 @@ export function PlayerGamePage() {
     send({ type: "answer_submitted", payload: { question_id: questionId, option_id: optionId } });
   };
 
-  const handleMoveOption = (index: number, direction: "up" | "down") => {
-    if (orderingSubmitted) return;
-    const newOrder = [...orderedOptionIds];
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= newOrder.length) return;
-    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
-    setOrderedOptionIds(newOrder);
-  };
-
   const handleSubmitOrdering = (questionId: string) => {
     if (orderingSubmitted) return;
     setOrderingSubmitted(true);
-    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: orderedOptionIds } });
+    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: orderedIds } });
   };
 
   // ── Ended ────────────────────────────────────────────────────────────────
@@ -257,7 +253,7 @@ export function PlayerGamePage() {
             </motion.h3>
             <div className="grid grid-cols-1 gap-3 mb-6">
               {correctOrder.map((optId, i) => {
-                const playerGotRight = orderedOptionIds[i] === optId;
+                const playerGotRight = orderedIds[i] === optId;
                 return (
                   <motion.div key={optId}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl"
@@ -468,45 +464,61 @@ export function PlayerGamePage() {
               </div>
             </motion.div>
           ) : isOrdering ? (
-            /* ── Ordering question ──────────────────────────────────────── */
-            <div className="flex flex-col gap-2">
-              {orderedOptionIds.map((optId, i) => {
-                const opt = opts.find(o => o.id === optId);
-                if (!opt) return null;
-                return (
-                  <motion.div key={optId}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                    style={{
-                      background: "rgba(255,255,255,0.08)",
-                      border: "1px solid rgba(245,200,66,0.2)",
-                    }}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    layout>
-                    <span className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
-                      style={{ background: "rgba(245,200,66,0.2)", color: "#f5c842" }}>
-                      {i + 1}
-                    </span>
-                    <p className="text-white font-medium flex-1 leading-tight text-sm">{opt.text}</p>
-                    <div className="flex flex-col gap-0.5">
-                      <button onClick={() => handleMoveOption(i, "up")} disabled={i === 0}
-                        className="p-1 rounded disabled:opacity-20 transition-opacity"
-                        style={{ color: "#f5c842" }}>
-                        <ChevronUp className="w-5 h-5" />
-                      </button>
-                      <button onClick={() => handleMoveOption(i, "down")} disabled={i === orderedOptionIds.length - 1}
-                        className="p-1 rounded disabled:opacity-20 transition-opacity"
-                        style={{ color: "#f5c842" }}>
-                        <ChevronDown className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
+            /* ── Ordering question (drag to reorder) ──────────────────── */
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Hold and drag to reorder
+              </p>
+
+              <Reorder.Group
+                as="div"
+                axis="y"
+                values={orderedIds}
+                onReorder={setOrderedIds}
+                className="flex flex-col gap-3"
+                data-testid="ordering-list"
+              >
+                {orderedIds.map((id, i) => {
+                  const opt = opts.find(o => o.id === id);
+                  return (
+                    <Reorder.Item
+                      as="div"
+                      key={id}
+                      value={id}
+                      className="flex items-center gap-3 px-4 py-4 rounded-2xl cursor-grab active:cursor-grabbing select-none"
+                      style={{
+                        background: "rgba(42,20,66,0.8)",
+                        border: "2px solid rgba(245,200,66,0.25)",
+                        touchAction: "none",
+                        position: "relative",
+                      }}
+                      whileDrag={{
+                        scale: 1.05,
+                        boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 2px #f5c842",
+                        background: "rgba(42,20,66,0.95)",
+                        cursor: "grabbing",
+                      }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    >
+                      <span
+                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
+                        style={{ background: "rgba(245,200,66,0.2)", color: "#f5c842" }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-white font-medium flex-1 leading-tight">
+                        {opt?.text}
+                      </span>
+                      <GripVertical className="w-6 h-6 flex-shrink-0" style={{ color: "rgba(245,200,66,0.4)" }} />
+                    </Reorder.Item>
+                  );
+                })}
+              </Reorder.Group>
+
+              {/* Submit button */}
               <motion.button
                 onClick={() => handleSubmitOrdering(q.id)}
-                className="mt-4 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+                className="mt-2 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
                 style={{
                   background: "linear-gradient(135deg, #f5c842 0%, #ff6b35 100%)",
                   boxShadow: "0 6px 20px rgba(245,200,66,0.4)",
@@ -515,7 +527,8 @@ export function PlayerGamePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}>
+                whileTap={{ scale: 0.98 }}
+              >
                 <Send className="w-5 h-5" />
                 Submit Order
               </motion.button>

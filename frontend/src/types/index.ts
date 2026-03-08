@@ -87,7 +87,9 @@ export type MessageType =
   | "podium"
   | "error"
   | "ping"
-  | "answer_count";
+  | "answer_count"
+  | "player_kicked"
+  | "kick_player";
 
 export interface WsMessage<T = unknown> {
   type: MessageType;

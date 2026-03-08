@@ -1,13 +1,15 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { LanternIcon, CrescentIcon } from "../components/icons";
 import { joinSession } from "../api/sessions";
 
 export function JoinPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const wasKicked = (location.state as { kicked?: boolean })?.kicked;
 
   const [code, setCode] = useState((searchParams.get("code") ?? "").replace(/\D/g, "").slice(0, 6));
   const [name, setName] = useState("");
@@ -59,6 +61,18 @@ export function JoinPage() {
             </motion.div>
           ))}
         </div>
+
+        {/* Kicked banner */}
+        {wasKicked && (
+          <motion.div
+            className="w-full max-w-sm mb-4 px-4 py-3 rounded-xl text-center text-sm font-medium"
+            style={{ background: "rgba(244,67,54,0.15)", border: "1px solid rgba(244,67,54,0.3)", color: "#f44336" }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            You were removed from the game by the host.
+          </motion.div>
+        )}
 
         {/* Card */}
         <motion.div

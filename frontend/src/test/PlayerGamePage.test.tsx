@@ -271,7 +271,7 @@ describe("PlayerGamePage", () => {
 
   // --- Question type rendering ---
 
-  it("renders ordering question with up/down buttons and submit order", () => {
+  it("renders ordering question with draggable list and submit button", () => {
     renderPlayerGame();
     act(() =>
       capturedOnMessage!({
@@ -294,10 +294,16 @@ describe("PlayerGamePage", () => {
       }),
     );
     expect(screen.getByText("Arrange in order")).toBeInTheDocument();
+    // All items shown in the reorderable list
     expect(screen.getByText("First")).toBeInTheDocument();
     expect(screen.getByText("Second")).toBeInTheDocument();
     expect(screen.getByText("Third")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /submit order/i })).toBeInTheDocument();
+    // Drag hint shown
+    expect(screen.getByText(/drag to reorder/i)).toBeInTheDocument();
+    // Submit button is present and enabled (all items are already in the list)
+    const submitBtn = screen.getByRole("button", { name: /submit order/i });
+    expect(submitBtn).toBeInTheDocument();
+    expect(submitBtn).not.toBeDisabled();
   });
 
   it("sends option_ids array when ordering answer submitted", async () => {
@@ -323,7 +329,9 @@ describe("PlayerGamePage", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /submit order/i }));
+    // Items are already in the list in their initial order — click submit
+    const submitBtn = screen.getByRole("button", { name: /submit order/i });
+    await userEvent.click(submitBtn);
 
     expect(mockSend).toHaveBeenCalledWith({
       type: "answer_submitted",

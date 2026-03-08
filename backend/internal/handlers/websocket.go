@@ -14,6 +14,7 @@ import (
 	"github.com/HassanA01/Hilal/backend/internal/game"
 	"github.com/HassanA01/Hilal/backend/internal/hub"
 	"github.com/HassanA01/Hilal/backend/internal/metrics"
+	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
 func newUpgrader(frontendURL string) *websocket.Upgrader {
@@ -94,6 +95,15 @@ func (h *Handler) PlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 				"name":      playerName,
 			},
 		})
+		// If the session is still waiting, remove the player row so a
+		// rejoin doesn't create a duplicate entry in the DB.
+		var status string
+		if err := h.db.QueryRow(context.Background(),
+			`SELECT status FROM game_sessions WHERE code = $1`, sessionCode,
+		).Scan(&status); err == nil && status == string(models.GameStatusWaiting) {
+			_, _ = h.db.Exec(context.Background(),
+				`DELETE FROM game_players WHERE id = $1`, playerID)
+		}
 	}()
 
 	// Notify room of new player
@@ -233,6 +243,30 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 		}
 		if err := h.engine.NextQuestion(ctx, sessionCode); err != nil {
 			slog.Error("engine.NextQuestion failed", "error", err, "session", sessionCode)
+		}
+
+	case hub.MsgKickPlayer:
+		if !isHost {
+			return
+		}
+		payload, ok := msg.Payload.(map[string]any)
+		if !ok {
+			return
+		}
+		playerID, _ := payload["player_id"].(string)
+		if playerID == "" {
+			return
+		}
+		kicked := h.hub.KickPlayer(sessionCode, playerID)
+		if kicked != nil {
+			// Broadcast player_left to remaining clients so lobby updates
+			h.hub.Broadcast(sessionCode, hub.Message{
+				Type: hub.MsgPlayerLeft,
+				Payload: map[string]string{
+					"player_id": playerID,
+				},
+			})
+			slog.Info("player kicked", "session", sessionCode, "player", playerID)
 		}
 
 	default:
