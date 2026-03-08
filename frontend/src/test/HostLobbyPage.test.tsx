@@ -14,6 +14,10 @@ vi.mock("../hooks/useWebSocket", () => ({
   useWebSocket: () => ({}),
 }));
 
+vi.mock("../hooks/useLobbyAudio", () => ({
+  useLobbyAudio: () => ({ muted: false, toggleMute: vi.fn() }),
+}));
+
 function renderLobby(code = "ABC123") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
