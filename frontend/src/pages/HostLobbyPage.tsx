@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { Users, Copy, Check } from "lucide-react";
+import { Users, Copy, Check, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { LanternIcon, CrescentIcon } from "../components/icons";
 import { getSessionByCode, listSessionPlayers, startSession } from "../api/sessions";
@@ -72,7 +72,7 @@ export function HostLobbyPage() {
     }
   }, [code, navigate]);
 
-  useWebSocket({
+  const { send } = useWebSocket({
     url: `${WS_BASE}/api/v1/ws/host/${code}`,
     onMessage: handleMessage,
     onOpen: () => setWsReady(true),
@@ -93,6 +93,10 @@ export function HostLobbyPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function handleKick(playerId: string) {
+    send({ type: "kick_player", payload: { player_id: playerId } });
   }
 
   if (isError) {
@@ -201,7 +205,17 @@ export function HostLobbyPage() {
                     style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }}>
                     {player.name[0]?.toUpperCase()}
                   </div>
-                  <span className="font-medium text-white">{player.name}</span>
+                  <span className="font-medium text-white flex-1">{player.name}</span>
+                  <motion.button
+                    onClick={() => handleKick(player.id)}
+                    className="p-1.5 rounded-lg opacity-30 hover:opacity-100 transition-opacity"
+                    style={{ color: "#f44336" }}
+                    whileHover={{ scale: 1.1, backgroundColor: "rgba(244,67,54,0.15)" }}
+                    whileTap={{ scale: 0.9 }}
+                    aria-label={`Kick ${player.name}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </motion.button>
                 </motion.div>
               ))}
             </motion.div>

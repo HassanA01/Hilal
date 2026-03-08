@@ -93,6 +93,76 @@ func TestBroadcastAnswerCountToHostOnly(t *testing.T) {
 	}
 }
 
+func TestKickPlayer_Success(t *testing.T) {
+	h := newTestHub()
+
+	hostSend := make(chan []byte, 4)
+	playerSend := make(chan []byte, 4)
+
+	host := &Client{ID: "host-1", IsHost: true, Send: hostSend}
+	player := &Client{ID: "player-1", IsHost: false, Send: playerSend}
+
+	h.JoinRoom("KICK1", host)
+	h.JoinRoom("KICK1", player)
+
+	kicked := h.KickPlayer("KICK1", "player-1")
+	if kicked == nil {
+		t.Fatal("expected kicked client, got nil")
+	}
+	if kicked.ID != "player-1" {
+		t.Errorf("kicked client ID = %q, want %q", kicked.ID, "player-1")
+	}
+
+	// The kicked player should have received a player_kicked message.
+	if len(playerSend) != 1 {
+		t.Errorf("kicked player should receive 1 message, got %d", len(playerSend))
+	}
+
+	// The player should be removed from the room; only host remains.
+	if h.RoomPlayerCount("KICK1") != 0 {
+		t.Errorf("room should have 0 players after kick, got %d", h.RoomPlayerCount("KICK1"))
+	}
+}
+
+func TestKickPlayer_CannotKickHost(t *testing.T) {
+	h := newTestHub()
+
+	hostSend := make(chan []byte, 4)
+	host := &Client{ID: "host-1", IsHost: true, Send: hostSend}
+
+	h.JoinRoom("KICK2", host)
+
+	kicked := h.KickPlayer("KICK2", "host-1")
+	if kicked != nil {
+		t.Errorf("should not be able to kick host, got %+v", kicked)
+	}
+
+	// Host should still be in the room.
+	if len(hostSend) != 0 {
+		t.Errorf("host should not receive any message, got %d", len(hostSend))
+	}
+}
+
+func TestKickPlayer_NonexistentPlayer(t *testing.T) {
+	h := newTestHub()
+
+	hostSend := make(chan []byte, 4)
+	host := &Client{ID: "host-1", IsHost: true, Send: hostSend}
+
+	h.JoinRoom("KICK3", host)
+
+	kicked := h.KickPlayer("KICK3", "ghost-player")
+	if kicked != nil {
+		t.Errorf("should return nil for nonexistent player, got %+v", kicked)
+	}
+
+	// Also test with a completely unknown room.
+	kicked = h.KickPlayer("NOROOM", "ghost-player")
+	if kicked != nil {
+		t.Errorf("should return nil for unknown room, got %+v", kicked)
+	}
+}
+
 func TestBroadcastToPlayersNoPlayers(t *testing.T) {
 	h := newTestHub()
 

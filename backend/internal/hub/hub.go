@@ -26,6 +26,8 @@ const (
 	MsgError           MessageType = "error"
 	MsgPing            MessageType = "ping"
 	MsgAnswerCount     MessageType = "answer_count"
+	MsgPlayerKicked    MessageType = "player_kicked"
+	MsgKickPlayer      MessageType = "kick_player"
 )
 
 // Message is the envelope for all WebSocket communication.
@@ -156,6 +158,38 @@ func (h *Hub) BroadcastToPlayers(roomCode string, msg Message) {
 			}
 		}
 	}
+}
+
+// KickPlayer removes a non-host player from a room by player ID.
+// It sends a player_kicked message, closes the Send channel, and removes
+// the client from the room. Returns the kicked client or nil if not found.
+func (h *Hub) KickPlayer(roomCode, playerID string) *Client {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	room, ok := h.rooms[roomCode]
+	if !ok {
+		return nil
+	}
+	for client := range room {
+		if client.ID == playerID && !client.IsHost {
+			// Send kicked message before closing
+			data, _ := json.Marshal(Message{
+				Type:    MsgPlayerKicked,
+				Payload: map[string]string{"reason": "Removed by host"},
+			})
+			select {
+			case client.Send <- data:
+			default:
+			}
+			close(client.Send)
+			delete(room, client)
+			if len(room) == 0 {
+				delete(h.rooms, roomCode)
+			}
+			return client
+		}
+	}
+	return nil
 }
 
 // RoomPlayerCount returns the number of non-host clients in a room.

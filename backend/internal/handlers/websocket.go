@@ -235,6 +235,30 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 			slog.Error("engine.NextQuestion failed", "error", err, "session", sessionCode)
 		}
 
+	case hub.MsgKickPlayer:
+		if !isHost {
+			return
+		}
+		payload, ok := msg.Payload.(map[string]any)
+		if !ok {
+			return
+		}
+		playerID, _ := payload["player_id"].(string)
+		if playerID == "" {
+			return
+		}
+		kicked := h.hub.KickPlayer(sessionCode, playerID)
+		if kicked != nil {
+			// Broadcast player_left to remaining clients so lobby updates
+			h.hub.Broadcast(sessionCode, hub.Message{
+				Type: hub.MsgPlayerLeft,
+				Payload: map[string]string{
+					"player_id": playerID,
+				},
+			})
+			slog.Info("player kicked", "session", sessionCode, "player", playerID)
+		}
+
 	default:
 		slog.Warn("unhandled message type", "type", msg.Type, "isHost", isHost, "session", sessionCode)
 	}
