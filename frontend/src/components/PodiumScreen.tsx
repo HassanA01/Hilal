@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
+import confetti from "canvas-confetti";
 import { Trophy, Sparkles } from "lucide-react";
 import { LanternIcon, CrescentIcon } from "./icons";
 import type { PodiumEntry, PlayerResults } from "../types";
@@ -12,25 +13,93 @@ interface Props {
   playerResults?: PlayerResults | null;
 }
 
-// Deterministic confetti (stable across renders)
-const CONFETTI_COLORS = ["#f5c842", "#ff6b35", "#4caf50", "#2196f3", "#f44336", "#9c27b0", "#ec4899"];
+const GOLD_COLORS = ["#f5c842", "#ffd700", "#daa520", "#fff8dc", "#ff6b35", "#cd7f32"];
 
-interface ConfettiPiece {
-  id: number; color: string; left: string; delay: string; duration: string; width: string; height: string;
-}
+function fireCelebration() {
+  const duration = 6000;
+  const end = Date.now() + duration;
 
-function generateConfetti(count: number): ConfettiPiece[] {
-  let seed = 42;
-  const rng = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return ((seed >>> 0) / 0xffffffff) % 1; };
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    color: CONFETTI_COLORS[Math.floor(rng() * CONFETTI_COLORS.length)],
-    left: `${rng() * 100}%`,
-    delay: `${rng() * 3}s`,
-    duration: `${2.5 + rng() * 2}s`,
-    width: `${6 + Math.floor(rng() * 8)}px`,
-    height: `${10 + Math.floor(rng() * 8)}px`,
-  }));
+  // Side cannons — continuous confetti rain
+  const frame = () => {
+    confetti({
+      particleCount: 3,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0, y: 0.6 },
+      colors: GOLD_COLORS,
+      ticks: 200,
+      gravity: 0.8,
+      scalar: 1.2,
+      drift: 0.5,
+    });
+    confetti({
+      particleCount: 3,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1, y: 0.6 },
+      colors: GOLD_COLORS,
+      ticks: 200,
+      gravity: 0.8,
+      scalar: 1.2,
+      drift: -0.5,
+    });
+    if (Date.now() < end) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+
+  // Firework bursts — staggered explosions from bottom
+  const launchFirework = (delay: number, x: number) => {
+    setTimeout(() => {
+      // Big burst
+      confetti({
+        particleCount: 80,
+        spread: 360,
+        origin: { x, y: 0.3 + Math.random() * 0.2 },
+        colors: GOLD_COLORS,
+        ticks: 300,
+        gravity: 0.6,
+        scalar: 1.5,
+        startVelocity: 30,
+        shapes: ["circle", "square"],
+      });
+      // Trailing sparkles
+      confetti({
+        particleCount: 20,
+        spread: 360,
+        origin: { x, y: 0.3 + Math.random() * 0.2 },
+        colors: ["#ffffff", "#f5c842"],
+        ticks: 200,
+        gravity: 0.4,
+        scalar: 0.8,
+        startVelocity: 15,
+      });
+    }, delay);
+  };
+
+  // Staggered fireworks across the screen
+  launchFirework(300, 0.5);
+  launchFirework(800, 0.25);
+  launchFirework(1300, 0.75);
+  launchFirework(2000, 0.4);
+  launchFirework(2600, 0.6);
+  launchFirework(3200, 0.3);
+  launchFirework(3800, 0.7);
+  launchFirework(4500, 0.5);
+
+  // Grand finale — massive center burst
+  setTimeout(() => {
+    confetti({
+      particleCount: 150,
+      spread: 360,
+      origin: { x: 0.5, y: 0.35 },
+      colors: GOLD_COLORS,
+      ticks: 400,
+      gravity: 0.5,
+      scalar: 2,
+      startVelocity: 40,
+      shapes: ["circle", "square"],
+    });
+  }, 5200);
 }
 
 const RANK_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
@@ -100,23 +169,20 @@ function PodiumBlock({
 export function PodiumScreen({ entries, playerId, onEnd, endLabel = "Back to Dashboard", playerResults }: Props) {
   const top3 = entries.slice(0, 3);
   const rest = entries.slice(3);
-  const confetti = useMemo(() => generateConfetti(30), []);
   const myEntry = entries.find((e) => e.player_id === playerId);
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (!firedRef.current) {
+      firedRef.current = true;
+      fireCelebration();
+    }
+  }, []);
   const isChampion = myEntry?.rank === 1;
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
-      {/* Confetti */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        {confetti.map((piece) => (
-          <div key={piece.id} className="absolute top-0 animate-confetti-fall"
-            style={{ left: piece.left, animationDelay: piece.delay, animationDuration: piece.duration, width: piece.width, height: piece.height }}>
-            <div className="w-full h-full animate-confetti-spin" style={{ backgroundColor: piece.color, animationDelay: piece.delay }} />
-          </div>
-        ))}
-      </div>
-
       <div className="ramadan-pattern" />
 
       <div className="relative z-10 min-h-screen flex flex-col px-6 py-8 max-w-md mx-auto">

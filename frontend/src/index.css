@@ -46,18 +46,3 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30 30 0zm0 10L10 30l20 20 20-20-20-20z' fill='%23f5c842' fill-rule='evenodd'/%3E%3C/svg%3E");
   background-size: 60px 60px;
 }
-
-/* ─── Confetti animations (PodiumScreen) ───────────────────────────────── */
-@keyframes confetti-fall {
-  0% { transform: translateY(-20px); opacity: 1; }
-  100% { transform: translateY(110vh); opacity: 0.3; }
-}
-
-@keyframes confetti-spin {
-  0% { transform: rotate(0deg) scaleX(1); }
-  50% { transform: rotate(180deg) scaleX(0.3); }
-  100% { transform: rotate(360deg) scaleX(1); }
-}
-
-.animate-confetti-fall { animation: confetti-fall linear infinite; }
-.animate-confetti-spin { animation: confetti-spin linear infinite; }
