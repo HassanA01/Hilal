@@ -14,6 +14,7 @@ import (
 	"github.com/HassanA01/Hilal/backend/internal/game"
 	"github.com/HassanA01/Hilal/backend/internal/hub"
 	"github.com/HassanA01/Hilal/backend/internal/metrics"
+	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
 func newUpgrader(frontendURL string) *websocket.Upgrader {
@@ -94,6 +95,15 @@ func (h *Handler) PlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 				"name":      playerName,
 			},
 		})
+		// If the session is still waiting, remove the player row so a
+		// rejoin doesn't create a duplicate entry in the DB.
+		var status string
+		if err := h.db.QueryRow(context.Background(),
+			`SELECT status FROM game_sessions WHERE code = $1`, sessionCode,
+		).Scan(&status); err == nil && status == string(models.GameStatusWaiting) {
+			_, _ = h.db.Exec(context.Background(),
+				`DELETE FROM game_players WHERE id = $1`, playerID)
+		}
 	}()
 
 	// Notify room of new player
