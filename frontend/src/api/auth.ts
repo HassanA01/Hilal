@@ -4,6 +4,7 @@ import type { Admin } from "../types";
 export interface AuthResponse {
   token: string;
   admin: Admin;
+  is_superadmin: boolean;
 }
 
 export async function register(email: string, password: string): Promise<AuthResponse> {

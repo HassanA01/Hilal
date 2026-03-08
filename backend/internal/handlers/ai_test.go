@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -285,4 +288,165 @@ func TestGenerateQuiz_RateLimited(t *testing.T) {
 	if w.Header().Get("Retry-After") == "" {
 		t.Error("expected Retry-After header")
 	}
+}
+
+// --- Upload handler tests ---
+
+// postMultipart builds a multipart request with a file and optional form fields.
+func postMultipart(t *testing.T, handler http.HandlerFunc, filename string, fileContent []byte, fields map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if fileContent != nil {
+		part, err := writer.CreateFormFile("document", filename)
+		if err != nil {
+			t.Fatalf("create form file: %v", err)
+		}
+		if _, err := part.Write(fileContent); err != nil {
+			t.Fatalf("write file content: %v", err)
+		}
+	}
+	for k, v := range fields {
+		if err := writer.WriteField(k, v); err != nil {
+			t.Fatalf("write field %s: %v", k, err)
+		}
+	}
+	writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+	handler(w, req)
+	return w
+}
+
+func TestGenerateQuizFromUpload_MissingFile(t *testing.T) {
+	h := newTestHandler()
+	w := postMultipart(t, h.GenerateQuizFromUpload, "", nil, map[string]string{
+		"question_count": "5",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_UnsupportedExtension(t *testing.T) {
+	h := newTestHandler()
+	w := postMultipart(t, h.GenerateQuizFromUpload, "sheet.xlsx", []byte("data"), map[string]string{
+		"question_count": "5",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_InvalidQuestionCount(t *testing.T) {
+	h := newTestHandler()
+
+	tests := []struct {
+		name  string
+		count string
+	}{
+		{"zero", "0"},
+		{"eleven", "11"},
+		{"non-numeric", "abc"},
+		{"empty", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := postMultipart(t, h.GenerateQuizFromUpload, "notes.txt", []byte("some content"), map[string]string{
+				"question_count": tc.count,
+			})
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("want 400, got %d", w.Code)
+			}
+		})
+	}
+}
+
+func TestGenerateQuizFromUpload_EmptyTextFile(t *testing.T) {
+	h := newTestHandler()
+	w := postMultipart(t, h.GenerateQuizFromUpload, "empty.txt", []byte("   \n  "), map[string]string{
+		"question_count": "5",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_MissingAPIKey(t *testing.T) {
+	h := newTestHandler()
+	w := postMultipart(t, h.GenerateQuizFromUpload, "notes.txt", []byte("This is a document about science and biology."), map[string]string{
+		"question_count": "5",
+	})
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("want 503 (passed validation), got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_ValidDocx(t *testing.T) {
+	h := newTestHandler()
+	docx := makeTestDOCX("This is document body text about history.")
+	w := postMultipart(t, h.GenerateQuizFromUpload, "lesson.docx", docx, map[string]string{
+		"question_count": "3",
+	})
+	// Should pass validation and reach the 503 (no anthropic client)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("want 503 (passed validation), got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_BadMagicBytes(t *testing.T) {
+	h := newTestHandler()
+	w := postMultipart(t, h.GenerateQuizFromUpload, "fake.pdf", []byte("not a pdf file"), map[string]string{
+		"question_count": "5",
+	})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("want 400, got %d", w.Code)
+	}
+}
+
+func TestGenerateQuizFromUpload_RateLimited(t *testing.T) {
+	h, _ := newTestHandlerWithRedis(t, 1)
+
+	makeRequest := func() *httptest.ResponseRecorder {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		part, _ := writer.CreateFormFile("document", "notes.txt")
+		_, _ = part.Write([]byte("Some document content for quiz generation."))
+		_ = writer.WriteField("question_count", "3")
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, "/", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = req.WithContext(middleware.ContextWithAdminID(req.Context(), "admin-1"))
+		w := httptest.NewRecorder()
+		h.GenerateQuizFromUpload(w, req)
+		return w
+	}
+
+	// First request: passes rate limit, hits 503 (no anthropic client)
+	w := makeRequest()
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("first request: want 503, got %d", w.Code)
+	}
+
+	// Second request: rate limited
+	w = makeRequest()
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("second request: want 429, got %d", w.Code)
+	}
+}
+
+// makeTestDOCX creates a minimal valid DOCX (ZIP) with a single paragraph.
+func makeTestDOCX(text string) []byte {
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	f, _ := w.Create("word/document.xml")
+	fmt.Fprintf(f,
+		`<?xml version="1.0" encoding="UTF-8"?>`+
+			`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">`+
+			`<w:body><w:p><w:r><w:t>%s</w:t></w:r></w:p></w:body></w:document>`, text)
+	w.Close()
+	return buf.Bytes()
 }

@@ -10,7 +10,7 @@ import { LeaderboardDisplay } from "../components/LeaderboardDisplay";
 import { PodiumScreen } from "../components/PodiumScreen";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { PrayerArcTransition } from "../components/PrayerArcTransition";
-import type { WsMessage, LeaderboardEntry, PodiumEntry } from "../types";
+import type { WsMessage, LeaderboardEntry, PodiumEntry, AnswerRevealPayload } from "../types";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE_URL ?? "ws://localhost:8081";
 
@@ -18,6 +18,8 @@ interface HostOption {
   id: string;
   text: string;
   is_correct: boolean;
+  image_url?: string;
+  sort_order?: number;
 }
 
 interface HostQuestionPayload {
@@ -26,20 +28,24 @@ interface HostQuestionPayload {
   question: {
     id: string;
     text: string;
+    type: string;
     time_limit: number;
+    image_url?: string;
     options: HostOption[];
   };
-}
-
-interface AnswerRevealPayload {
-  correct_option_id: string;
-  scores: Record<string, { is_correct: boolean; points: number; total_score: number }>;
 }
 
 type GamePhase = "waiting" | "question" | "reveal" | "leaderboard" | "arc_transition" | "podium";
 
 const OPTION_COLORS = ["#4caf50", "#2196f3", "#ff6b35", "#f44336"];
-const OPTION_LETTERS = ["A", "B", "C", "D"];
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
+const TYPE_LABELS: Record<string, string> = {
+  multiple_choice: "Multiple Choice",
+  true_false: "True / False",
+  image_choice: "Image Choice",
+  ordering: "Ordering",
+};
 
 export function HostGamePage() {
   const { code } = useParams<{ code: string }>();
@@ -197,6 +203,8 @@ export function HostGamePage() {
   // Question + Reveal split panel
   const circumference = 2 * Math.PI * 54;
   const dashOffset = circumference * (1 - timeLeft / Math.max(timeLimit, 1));
+  const qType = currentQuestion?.question.type ?? "multiple_choice";
+  const isOrdering = qType === "ordering";
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden flex flex-col" style={{ background: "#1a0a2e" }}>
@@ -221,8 +229,11 @@ export function HostGamePage() {
           <span className="font-mono text-sm px-2 py-0.5 rounded" style={{ background: "rgba(245,200,66,0.1)", color: "rgba(255,255,255,0.5)" }}>{code}</span>
         </div>
         {currentQuestion && (
-          <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
-            Question <span className="font-bold text-white">{currentQuestion.question_index + 1}</span> / {currentQuestion.total_questions}
+          <div className="flex items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: "rgba(245,200,66,0.15)", color: "#f5c842" }}>
+              {TYPE_LABELS[qType] ?? qType}
+            </span>
+            <span>Q <span className="font-bold text-white">{currentQuestion.question_index + 1}</span> / {currentQuestion.total_questions}</span>
           </div>
         )}
         <div className="flex items-center gap-2 sm:gap-3">
@@ -276,6 +287,11 @@ export function HostGamePage() {
             </div>
             <h2 className="text-3xl font-bold text-white leading-tight">{currentQuestion.question.text}</h2>
 
+            {/* Question image */}
+            {currentQuestion.question.image_url && (
+              <img src={currentQuestion.question.image_url} alt="" className="mt-4 rounded-xl max-h-48 object-contain" />
+            )}
+
             {/* Timer circle */}
             <div className="flex justify-center mt-8">
               <div className="relative w-28 h-28">
@@ -310,7 +326,7 @@ export function HostGamePage() {
                   {Object.values(revealPayload.scores).filter((s) => s.is_correct).length}
                 </span>
                 <span className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
-                  / {Object.keys(revealPayload.scores).length} answered correctly
+                  / {Object.keys(revealPayload.scores).length} {isOrdering ? "got full marks" : "answered correctly"}
                 </span>
               </div>
             ) : (
@@ -330,39 +346,74 @@ export function HostGamePage() {
             style={{ background: "linear-gradient(135deg, rgba(42,20,66,0.9) 0%, rgba(30,15,50,0.95) 100%)", border: "2px solid rgba(245,200,66,0.3)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold" style={{ color: "rgba(255,255,255,0.8)" }}>Answer Options</h3>
+              <h3 className="text-base font-bold" style={{ color: "rgba(255,255,255,0.8)" }}>
+                {isOrdering ? "Correct Order" : "Answer Options"}
+              </h3>
               {phase === "reveal" && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(76,175,80,0.2)", color: "#4caf50" }}>Revealed</span>
               )}
             </div>
-            {currentQuestion.question.options.map((opt, i) => {
-              const color = OPTION_COLORS[i % 4];
-              const isCorrect = opt.is_correct;
-              const revealed = phase === "reveal";
-              const dimmed = revealed && !isCorrect;
-              return (
-                <motion.div key={opt.id}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                  style={{
-                    background: `${color}${dimmed ? "11" : "22"}`,
-                    border: `2px solid ${revealed ? (isCorrect ? color : "rgba(255,255,255,0.08)") : `${color}55`}`,
-                    opacity: dimmed ? 0.4 : 1,
-                  }}
-                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: dimmed ? 0.4 : 1, x: 0 }} transition={{ delay: i * 0.08 }}>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white shrink-0 text-sm"
-                    style={{ background: color }}>
-                    {OPTION_LETTERS[i]}
-                  </div>
-                  <span className="font-medium text-white flex-1 text-sm leading-snug">{opt.text}</span>
-                  {revealed && isCorrect && (
-                    <motion.span className="text-xl font-black shrink-0" style={{ color }}
-                      initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300 }}>
-                      ✓
-                    </motion.span>
-                  )}
-                </motion.div>
-              );
-            })}
+
+            {isOrdering ? (
+              /* ── Ordering options (shown in correct order for host) ── */
+              currentQuestion.question.options.map((opt, i) => {
+                const revealed = phase === "reveal";
+                return (
+                  <motion.div key={opt.id}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{
+                      background: revealed ? "rgba(76,175,80,0.15)" : "rgba(255,255,255,0.08)",
+                      border: `1px solid ${revealed ? "rgba(76,175,80,0.3)" : "rgba(245,200,66,0.2)"}`,
+                    }}
+                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}>
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white shrink-0 text-sm"
+                      style={{ background: revealed ? "#4caf50" : "rgba(245,200,66,0.3)", color: revealed ? "white" : "#f5c842" }}>
+                      {i + 1}
+                    </div>
+                    <span className="font-medium text-white flex-1 text-sm leading-snug">{opt.text}</span>
+                    {revealed && (
+                      <motion.span className="text-xl font-black shrink-0" style={{ color: "#4caf50" }}
+                        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300 }}>
+                        &#x2713;
+                      </motion.span>
+                    )}
+                  </motion.div>
+                );
+              })
+            ) : (
+              /* ── MC / TF / Image Choice options ── */
+              currentQuestion.question.options.map((opt, i) => {
+                const color = OPTION_COLORS[i % 4];
+                const isCorrect = opt.is_correct;
+                const revealed = phase === "reveal";
+                const dimmed = revealed && !isCorrect;
+                return (
+                  <motion.div key={opt.id}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{
+                      background: `${color}${dimmed ? "11" : "22"}`,
+                      border: `2px solid ${revealed ? (isCorrect ? color : "rgba(255,255,255,0.08)") : `${color}55`}`,
+                      opacity: dimmed ? 0.4 : 1,
+                    }}
+                    initial={{ opacity: 0, x: 20 }} animate={{ opacity: dimmed ? 0.4 : 1, x: 0 }} transition={{ delay: i * 0.08 }}>
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white shrink-0 text-sm"
+                      style={{ background: color }}>
+                      {OPTION_LETTERS[i]}
+                    </div>
+                    {opt.image_url && (
+                      <img src={opt.image_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                    )}
+                    <span className="font-medium text-white flex-1 text-sm leading-snug">{opt.text}</span>
+                    {revealed && isCorrect && (
+                      <motion.span className="text-xl font-black shrink-0" style={{ color }}
+                        initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300 }}>
+                        &#x2713;
+                      </motion.span>
+                    )}
+                  </motion.div>
+                );
+              })
+            )}
           </motion.div>
 
           {phase === "reveal" && (

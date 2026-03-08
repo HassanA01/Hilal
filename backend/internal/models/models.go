@@ -1,9 +1,20 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+// QuestionType enumerates the supported question types.
+type QuestionType string
+
+const (
+	QTypeMultipleChoice QuestionType = "multiple_choice"
+	QTypeTrueFalse      QuestionType = "true_false"
+	QTypeImageChoice    QuestionType = "image_choice"
+	QTypeOrdering       QuestionType = "ordering"
 )
 
 // Admin / user
@@ -26,12 +37,14 @@ type Quiz struct {
 }
 
 type Question struct {
-	ID        uuid.UUID `json:"id" db:"id"`
-	QuizID    uuid.UUID `json:"quiz_id" db:"quiz_id"`
-	Text      string    `json:"text" db:"text"`
-	TimeLimit int       `json:"time_limit" db:"time_limit"` // seconds
-	Order     int       `json:"order" db:"order"`
-	Options   []Option  `json:"options,omitempty"`
+	ID        uuid.UUID    `json:"id" db:"id"`
+	QuizID    uuid.UUID    `json:"quiz_id" db:"quiz_id"`
+	Text      string       `json:"text" db:"text"`
+	Type      QuestionType `json:"type" db:"type"`
+	TimeLimit int          `json:"time_limit" db:"time_limit"` // seconds
+	Order     int          `json:"order" db:"order"`
+	ImageURL  *string      `json:"image_url,omitempty" db:"image_url"`
+	Options   []Option     `json:"options,omitempty"`
 }
 
 type Option struct {
@@ -39,6 +52,8 @@ type Option struct {
 	QuestionID uuid.UUID `json:"question_id" db:"question_id"`
 	Text       string    `json:"text" db:"text"`
 	IsCorrect  bool      `json:"is_correct" db:"is_correct"`
+	ImageURL   *string   `json:"image_url,omitempty" db:"image_url"`
+	SortOrder  int       `json:"sort_order" db:"sort_order"`
 }
 
 // Game session
@@ -70,14 +85,15 @@ type GamePlayer struct {
 }
 
 type GameAnswer struct {
-	ID         uuid.UUID `json:"id" db:"id"`
-	SessionID  uuid.UUID `json:"session_id" db:"session_id"`
-	PlayerID   uuid.UUID `json:"player_id" db:"player_id"`
-	QuestionID uuid.UUID `json:"question_id" db:"question_id"`
-	OptionID   uuid.UUID `json:"option_id" db:"option_id"`
-	AnsweredAt time.Time `json:"answered_at" db:"answered_at"`
-	IsCorrect  bool      `json:"is_correct" db:"is_correct"`
-	Points     int       `json:"points" db:"points"`
+	ID         uuid.UUID       `json:"id" db:"id"`
+	SessionID  uuid.UUID       `json:"session_id" db:"session_id"`
+	PlayerID   uuid.UUID       `json:"player_id" db:"player_id"`
+	QuestionID uuid.UUID       `json:"question_id" db:"question_id"`
+	OptionID   *uuid.UUID      `json:"option_id,omitempty" db:"option_id"`
+	AnswerData json.RawMessage `json:"answer_data,omitempty" db:"answer_data"`
+	AnsweredAt time.Time       `json:"answered_at" db:"answered_at"`
+	IsCorrect  bool            `json:"is_correct" db:"is_correct"`
+	Points     int             `json:"points" db:"points"`
 }
 
 // SessionSummary is returned by the list-sessions endpoint.
@@ -105,15 +121,17 @@ type LeaderboardEntry struct {
 // Player results (personal game summary)
 
 type PlayerResultQuestion struct {
-	QuestionID         uuid.UUID `json:"question_id"`
-	QuestionText       string    `json:"question_text"`
-	QuestionOrder      int       `json:"question_order"`
-	SelectedOptionID   uuid.UUID `json:"selected_option_id"`
-	SelectedOptionText string    `json:"selected_option_text"`
-	CorrectOptionID    uuid.UUID `json:"correct_option_id"`
-	CorrectOptionText  string    `json:"correct_option_text"`
-	IsCorrect          bool      `json:"is_correct"`
-	Points             int       `json:"points"`
+	QuestionID         uuid.UUID       `json:"question_id"`
+	QuestionText       string          `json:"question_text"`
+	QuestionType       QuestionType    `json:"question_type"`
+	QuestionOrder      int             `json:"question_order"`
+	SelectedOptionID   *uuid.UUID      `json:"selected_option_id,omitempty"`
+	SelectedOptionText string          `json:"selected_option_text,omitempty"`
+	CorrectOptionID    *uuid.UUID      `json:"correct_option_id,omitempty"`
+	CorrectOptionText  string          `json:"correct_option_text,omitempty"`
+	AnswerData         json.RawMessage `json:"answer_data,omitempty"`
+	IsCorrect          bool            `json:"is_correct"`
+	Points             int             `json:"points"`
 }
 
 type PlayerResults struct {

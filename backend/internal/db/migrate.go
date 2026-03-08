@@ -3,7 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -33,6 +33,6 @@ func Migrate(databaseURL string) error {
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
-	log.Println("migrations applied successfully")
+	slog.Info("migrations applied successfully")
 	return nil
 }

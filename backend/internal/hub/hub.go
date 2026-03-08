@@ -3,7 +3,7 @@ package hub
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/redis/go-redis/v9"
@@ -57,7 +57,7 @@ func New(redisClient *redis.Client) *Hub {
 }
 
 func (h *Hub) Run() {
-	log.Println("hub running")
+	slog.Info("hub running")
 }
 
 // JoinRoom adds a client to a room.
@@ -86,7 +86,7 @@ func (h *Hub) LeaveRoom(roomCode string, client *Client) {
 func (h *Hub) Broadcast(roomCode string, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("broadcast marshal error: %v", err)
+		slog.Error("broadcast marshal error", "error", err, "room", roomCode)
 		return
 	}
 	h.mu.RLock()
@@ -124,7 +124,7 @@ func (h *Hub) BroadcastToPlayer(roomCode, clientID string, msg Message) {
 func (h *Hub) BroadcastToHost(roomCode string, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("broadcast marshal error: %v", err)
+		slog.Error("broadcast marshal error", "error", err, "room", roomCode, "target", "host")
 		return
 	}
 	h.mu.RLock()
@@ -143,7 +143,7 @@ func (h *Hub) BroadcastToHost(roomCode string, msg Message) {
 func (h *Hub) BroadcastToPlayers(roomCode string, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("broadcast marshal error: %v", err)
+		slog.Error("broadcast marshal error", "error", err, "room", roomCode, "target", "players")
 		return
 	}
 	h.mu.RLock()

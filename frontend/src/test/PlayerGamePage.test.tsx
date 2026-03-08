@@ -60,6 +60,7 @@ const fakeQuestion = {
     question: {
       id: "q-1",
       text: "What is 2+2?",
+      type: "multiple_choice",
       time_limit: 20,
       options: [
         { id: "o-1", text: "3" },
@@ -224,6 +225,7 @@ describe("PlayerGamePage", () => {
           question: {
             id: "q-3opt",
             text: "Pick one",
+            type: "multiple_choice",
             time_limit: 20,
             options: [
               { id: "o-1", text: "A" },
@@ -252,6 +254,7 @@ describe("PlayerGamePage", () => {
           question: {
             id: "q-2opt",
             text: "True or false?",
+            type: "true_false",
             time_limit: 20,
             options: [
               { id: "o-1", text: "True" },
@@ -264,6 +267,107 @@ describe("PlayerGamePage", () => {
     expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(screen.getByText("True")).toBeInTheDocument();
     expect(screen.getByText("False")).toBeInTheDocument();
+  });
+
+  // --- Question type rendering ---
+
+  it("renders ordering question with up/down buttons and submit order", () => {
+    renderPlayerGame();
+    act(() =>
+      capturedOnMessage!({
+        type: "question",
+        payload: {
+          question_index: 0,
+          total_questions: 1,
+          question: {
+            id: "q-ord",
+            text: "Arrange in order",
+            type: "ordering",
+            time_limit: 30,
+            options: [
+              { id: "o-1", text: "First" },
+              { id: "o-2", text: "Second" },
+              { id: "o-3", text: "Third" },
+            ],
+          },
+        },
+      }),
+    );
+    expect(screen.getByText("Arrange in order")).toBeInTheDocument();
+    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Second")).toBeInTheDocument();
+    expect(screen.getByText("Third")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /submit order/i })).toBeInTheDocument();
+  });
+
+  it("sends option_ids array when ordering answer submitted", async () => {
+    renderPlayerGame();
+    act(() =>
+      capturedOnMessage!({
+        type: "question",
+        payload: {
+          question_index: 0,
+          total_questions: 1,
+          question: {
+            id: "q-ord",
+            text: "Arrange in order",
+            type: "ordering",
+            time_limit: 30,
+            options: [
+              { id: "o-1", text: "First" },
+              { id: "o-2", text: "Second" },
+              { id: "o-3", text: "Third" },
+            ],
+          },
+        },
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /submit order/i }));
+
+    expect(mockSend).toHaveBeenCalledWith({
+      type: "answer_submitted",
+      payload: { question_id: "q-ord", option_ids: ["o-1", "o-2", "o-3"] },
+    });
+    expect(screen.getByText(/answer locked in/i)).toBeInTheDocument();
+  });
+
+  it("shows ordering reveal with correct order positions", () => {
+    renderPlayerGame();
+    act(() =>
+      capturedOnMessage!({
+        type: "question",
+        payload: {
+          question_index: 0,
+          total_questions: 1,
+          question: {
+            id: "q-ord",
+            text: "Arrange in order",
+            type: "ordering",
+            time_limit: 30,
+            options: [
+              { id: "o-1", text: "First" },
+              { id: "o-2", text: "Second" },
+              { id: "o-3", text: "Third" },
+            ],
+          },
+        },
+      }),
+    );
+    act(() =>
+      capturedOnMessage!({
+        type: "answer_reveal",
+        payload: {
+          correct_order: ["o-1", "o-2", "o-3"],
+          scores: {
+            [PLAYER_ID]: { is_correct: false, points: 667, total_score: 667 },
+          },
+        },
+      }),
+    );
+    expect(screen.getByText("Correct Order")).toBeInTheDocument();
+    expect(screen.getByText("+667")).toBeInTheDocument();
+    expect(screen.getByText("Partial credit!")).toBeInTheDocument();
   });
 
   it("fetches player results when podium is shown", async () => {

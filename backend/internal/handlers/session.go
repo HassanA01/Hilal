@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"time"
@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/HassanA01/Hilal/backend/internal/hub"
+	"github.com/HassanA01/Hilal/backend/internal/metrics"
 	appMiddleware "github.com/HassanA01/Hilal/backend/internal/middleware"
 	"github.com/HassanA01/Hilal/backend/internal/models"
 )
@@ -178,6 +179,7 @@ func (h *Handler) EndSession(w http.ResponseWriter, r *http.Request) {
 
 	// Notify all WebSocket clients and clean up Redis.
 	h.engine.EndGame(context.Background(), code)
+	metrics.ActiveGames.Add(-1)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -284,6 +286,8 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	metrics.ActiveGames.Add(1)
+
 	h.hub.Broadcast(session.Code, hub.Message{
 		Type:    hub.MsgGameStarted,
 		Payload: map[string]string{"session_id": session.ID.String()},
@@ -293,7 +297,7 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 	// r.Context() is cancelled when the HTTP response is sent, so we must not use it here.
 	go func() {
 		if err := h.engine.StartGame(context.Background(), session.Code, session.ID.String(), session.QuizID.String()); err != nil {
-			log.Printf("engine.StartGame error: %v", err)
+			slog.Error("engine.StartGame failed", "error", err, "session", session.Code)
 		}
 	}()
 
@@ -340,19 +344,21 @@ func (h *Handler) GetPlayerResults(w http.ResponseWriter, r *http.Request) {
 		SELECT
 			q.id,
 			q.text,
-			q.order,
+			q.type,
+			q."order",
 			ga.option_id,
-			sel.text,
+			COALESCE(sel.text, ''),
 			ga.is_correct,
 			ga.points,
 			corr.id,
-			corr.text
+			COALESCE(corr.text, ''),
+			ga.answer_data
 		FROM game_answers ga
 		JOIN questions q ON q.id = ga.question_id
-		JOIN options sel ON sel.id = ga.option_id
-		JOIN options corr ON corr.question_id = q.id AND corr.is_correct = TRUE
+		LEFT JOIN options sel ON sel.id = ga.option_id
+		LEFT JOIN options corr ON corr.question_id = q.id AND corr.is_correct = TRUE
 		WHERE ga.session_id = $1 AND ga.player_id = $2
-		ORDER BY q.order ASC
+		ORDER BY q."order" ASC
 	`, sessionID, playerID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch results")
@@ -364,10 +370,11 @@ func (h *Handler) GetPlayerResults(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var q models.PlayerResultQuestion
 		if err := rows.Scan(
-			&q.QuestionID, &q.QuestionText, &q.QuestionOrder,
+			&q.QuestionID, &q.QuestionText, &q.QuestionType, &q.QuestionOrder,
 			&q.SelectedOptionID, &q.SelectedOptionText,
 			&q.IsCorrect, &q.Points,
 			&q.CorrectOptionID, &q.CorrectOptionText,
+			&q.AnswerData,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to read results")
 			return

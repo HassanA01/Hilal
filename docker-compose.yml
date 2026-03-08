@@ -49,10 +49,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-prod}
       FRONTEND_URL: "http://localhost:5173"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      SUPERADMIN_EMAIL: "${SUPERADMIN_EMAIL:-}"
     ports:
       - "8081:8081"
     volumes:
       - ./backend:/app
+      - uploads:/app/uploads
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
       interval: 10s
@@ -81,3 +83,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  uploads:

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,8 +31,9 @@ type loginRequest struct {
 }
 
 type authResponse struct {
-	Token string       `json:"token"`
-	Admin models.Admin `json:"admin"`
+	Token        string       `json:"token"`
+	Admin        models.Admin `json:"admin"`
+	IsSuperadmin bool         `json:"is_superadmin"`
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +88,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, authResponse{Token: token, Admin: admin})
+	isSuperadmin := h.config.SuperadminEmail != "" && strings.EqualFold(admin.Email, h.config.SuperadminEmail)
+	writeJSON(w, http.StatusCreated, authResponse{Token: token, Admin: admin, IsSuperadmin: isSuperadmin})
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +123,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, authResponse{Token: token, Admin: admin})
+	isSuperadmin := h.config.SuperadminEmail != "" && strings.EqualFold(admin.Email, h.config.SuperadminEmail)
+	writeJSON(w, http.StatusOK, authResponse{Token: token, Admin: admin, IsSuperadmin: isSuperadmin})
 }
 
 func (h *Handler) generateToken(adminID string) (string, error) {

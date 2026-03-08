@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -17,12 +17,14 @@ type Config struct {
 	FrontendURL        string
 	AnthropicAPIKey    string
 	AIRateLimitPerHour int
+	UploadsDir         string
+	SuperadminEmail    string
 }
 
 func Load() *Config {
 	anthropicKey := getEnv("ANTHROPIC_API_KEY", "")
 	if anthropicKey == "" {
-		log.Println("ANTHROPIC_API_KEY not set — AI quiz generation disabled")
+		slog.Warn("ANTHROPIC_API_KEY not set — AI quiz generation disabled")
 	}
 
 	aiRateLimit := 5
@@ -40,6 +42,8 @@ func Load() *Config {
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
 		AnthropicAPIKey:    anthropicKey,
 		AIRateLimitPerHour: aiRateLimit,
+		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
+		SuperadminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 	}
 }
 

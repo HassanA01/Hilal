@@ -4,19 +4,25 @@ export interface Admin {
   created_at: string;
 }
 
+export type QuestionType = "multiple_choice" | "true_false" | "image_choice" | "ordering";
+
 export interface Option {
   id: string;
   question_id: string;
   text: string;
   is_correct?: boolean; // only visible to host
+  image_url?: string;
+  sort_order?: number;
 }
 
 export interface Question {
   id: string;
   quiz_id: string;
   text: string;
+  type: QuestionType;
   time_limit: number;
   order: number;
+  image_url?: string;
   options: Option[];
 }
 
@@ -94,8 +100,10 @@ export interface QuestionPayload {
   question: {
     id: string;
     text: string;
+    type: QuestionType;
     time_limit: number;
-    options: Array<{ id: string; text: string }>;
+    image_url?: string;
+    options: Array<{ id: string; text: string; image_url?: string }>;
   };
 }
 
@@ -106,7 +114,8 @@ export interface RevealScoreEntry {
 }
 
 export interface AnswerRevealPayload {
-  correct_option_id: string;
+  correct_option_id?: string;
+  correct_order?: string[];
   scores: Record<string, RevealScoreEntry>;
 }
 
@@ -135,4 +144,130 @@ export interface PlayerResults {
   score: number;
   rank: number;
   questions: PlayerResultQuestion[];
+}
+
+// Analytics types
+export interface OverviewStats {
+  total_quizzes: number;
+  total_games: number;
+  total_players: number;
+  total_answers: number;
+  avg_players_per_game: number;
+  avg_score: number;
+}
+
+export interface TimeSeriesPoint {
+  date: string;
+  games: number;
+  players: number;
+}
+
+export interface QuizStats {
+  id: string;
+  title: string;
+  plays: number;
+  avg_score: number;
+  player_count: number;
+  question_count: number;
+  created_at: string;
+}
+
+export interface OptionDistribution {
+  text: string;
+  count: number;
+  pct: number;
+}
+
+export interface QuestionStats {
+  id: string;
+  text: string;
+  type: string;
+  order: number;
+  correct_pct: number;
+  avg_points: number;
+  total_answers: number;
+  options: OptionDistribution[];
+}
+
+export interface PlayerStats {
+  name: string;
+  total_score: number;
+  games_played: number;
+  avg_score: number;
+  avg_speed_ms: number;
+}
+
+export interface PeakHourBucket {
+  day_of_week: number;
+  hour: number;
+  count: number;
+}
+
+export interface EngagementData {
+  peak_hours: PeakHourBucket[];
+  avg_game_duration_seconds: number;
+}
+
+// Platform metrics types (superadmin only)
+export interface PlatformOverview {
+  total_admins: number;
+  total_quizzes: number;
+  total_games: number;
+  total_players: number;
+  total_answers: number;
+  avg_players_per_game: number;
+  avg_game_duration_seconds: number;
+  avg_questions_per_quiz: number;
+  game_completion_rate: number;
+  games_this_week: number;
+  games_last_week: number;
+  games_wow_change: number;
+  players_this_week: number;
+  players_last_week: number;
+  players_wow_change: number;
+}
+
+export interface FunnelStage {
+  label: string;
+  count: number;
+  pct: number;
+}
+
+export interface DistributionBucket {
+  label: string;
+  count: number;
+}
+
+export interface PlatformKPIs {
+  funnel: FunnelStage[];
+  player_count_distribution: DistributionBucket[];
+  admin_retention_7d: number;
+  admin_retention_30d: number;
+}
+
+export interface PlatformGrowthPoint {
+  date: string;
+  admins: number;
+  quizzes: number;
+  games: number;
+}
+
+export interface PlatformAdminStats {
+  id: string;
+  email: string;
+  quiz_count: number;
+  game_count: number;
+  player_count: number;
+  last_active: string | null;
+  created_at: string;
+}
+
+export interface PlatformAIStats {
+  total_quizzes: number;
+}
+
+export interface PlatformEngagement {
+  peak_hours: PeakHourBucket[];
+  avg_game_duration_seconds: number;
+  total_active_days: number;
 }

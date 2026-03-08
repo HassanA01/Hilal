@@ -45,6 +45,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      SUPERADMIN_EMAIL: "${SUPERADMIN_EMAIL:-}"
+    volumes:
+      - uploads:/app/uploads
     expose:
       - "8080"
 
@@ -63,3 +66,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  uploads:

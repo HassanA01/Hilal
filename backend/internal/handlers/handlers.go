@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/go-chi/chi/v5"
@@ -19,6 +22,7 @@ type Handler struct {
 	engine          *game.Engine
 	config          *config.Config
 	anthropicClient *anthropic.Client
+	uploadsDir      string
 }
 
 func New(db *pgxpool.Pool, redisClient *redis.Client, gameHub *hub.Hub, cfg *config.Config) *Handler {
@@ -27,6 +31,15 @@ func New(db *pgxpool.Pool, redisClient *redis.Client, gameHub *hub.Hub, cfg *con
 		c := anthropic.NewClient(option.WithAPIKey(cfg.AnthropicAPIKey))
 		ac = &c
 	}
+
+	uploadsDir := cfg.UploadsDir
+	if uploadsDir == "" {
+		uploadsDir = "./uploads"
+	}
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		slog.Error("failed to create uploads directory", "path", uploadsDir, "error", err)
+	}
+
 	return &Handler{
 		db:              db,
 		redis:           redisClient,
@@ -34,6 +47,7 @@ func New(db *pgxpool.Pool, redisClient *redis.Client, gameHub *hub.Hub, cfg *con
 		engine:          game.NewEngine(gameHub, db, redisClient),
 		config:          cfg,
 		anthropicClient: ac,
+		uploadsDir:      uploadsDir,
 	}
 }
 
@@ -49,6 +63,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/quizzes", h.ListQuizzes)
 			r.Post("/quizzes", h.CreateQuiz)
 			r.Post("/quizzes/generate", h.GenerateQuiz)
+			r.Post("/quizzes/generate/upload", h.GenerateQuizFromUpload)
 			r.Get("/quizzes/{quizID}", h.GetQuiz)
 			r.Put("/quizzes/{quizID}", h.UpdateQuiz)
 			r.Delete("/quizzes/{quizID}", h.DeleteQuiz)
@@ -59,7 +74,29 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/sessions/{sessionID}", h.GetSession)
 			r.Delete("/sessions/{sessionID}", h.EndSession)
 			r.Post("/sessions/{sessionID}/start", h.StartSession)
+
+			// Image uploads (admin only)
+			r.Post("/uploads/image", h.UploadImage)
+
+			// Analytics (admin only)
+			r.Get("/analytics/overview", h.AnalyticsOverview)
+			r.Get("/analytics/games-over-time", h.AnalyticsGamesOverTime)
+			r.Get("/analytics/quizzes", h.AnalyticsQuizzes)
+			r.Get("/analytics/quizzes/{quizID}/questions", h.AnalyticsQuizQuestions)
+			r.Get("/analytics/players", h.AnalyticsTopPlayers)
+			r.Get("/analytics/engagement", h.AnalyticsEngagement)
+
+			// Platform metrics (superadmin only — handler-level auth check)
+			r.Get("/platform/overview", h.PlatformOverview)
+			r.Get("/platform/growth", h.PlatformGrowth)
+			r.Get("/platform/admins", h.PlatformAdmins)
+			r.Get("/platform/ai-stats", h.PlatformAIStats)
+			r.Get("/platform/engagement", h.PlatformEngagement)
+			r.Get("/platform/kpis", h.PlatformKPIs)
 		})
+
+		// Uploaded images (public — players need to see them)
+		r.Get("/uploads/*", h.ServeUpload)
 
 		// Player-facing (no auth)
 		r.Post("/sessions/join", h.JoinSession)

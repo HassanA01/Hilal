@@ -2,21 +2,25 @@ import { useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Trash2, Check, Sparkles } from "lucide-react";
+import { Plus, Trash2, Check, Sparkles, ArrowUp, ArrowDown, Image, Loader2, X } from "lucide-react";
 import { CrescentIcon } from "../components/icons";
 import { getQuiz, createQuiz, updateQuiz } from "../api/quizzes";
-import type { Quiz } from "../types";
+import type { Quiz, QuestionType } from "../types";
 import type { QuestionInput } from "../api/quizzes";
 import { GenerateQuizModal } from "../components/GenerateQuizModal";
+import { uploadImage } from "../api/uploads";
 
 interface OptionDraft {
   text: string;
   is_correct: boolean;
+  image_url?: string;
 }
 
 interface QuestionDraft {
   text: string;
+  type: QuestionType;
   time_limit: number;
+  image_url?: string;
   options: OptionDraft[];
 }
 
@@ -24,12 +28,40 @@ function blankOption(): OptionDraft {
   return { text: "", is_correct: false };
 }
 
-function blankQuestion(): QuestionDraft {
-  return { text: "", time_limit: 20, options: [blankOption(), blankOption()] };
+function blankQuestion(type: QuestionType = "multiple_choice"): QuestionDraft {
+  switch (type) {
+    case "true_false":
+      return {
+        text: "", type, time_limit: 20,
+        options: [{ text: "True", is_correct: true }, { text: "False", is_correct: false }],
+      };
+    case "ordering":
+      return {
+        text: "", type, time_limit: 30,
+        options: [{ text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }],
+      };
+    case "image_choice":
+      return {
+        text: "", type, time_limit: 20, image_url: "",
+        options: [
+          { text: "", is_correct: true, image_url: "" },
+          { text: "", is_correct: false, image_url: "" },
+        ],
+      };
+    default:
+      return { text: "", type: "multiple_choice", time_limit: 20, options: [blankOption(), blankOption()] };
+  }
 }
 
 const OPTION_COLORS = ["#4caf50", "#2196f3", "#ff6b35", "#f44336"];
-const OPTION_LETTERS = ["A", "B", "C", "D"];
+const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
+const TYPE_LABELS: Record<QuestionType, string> = {
+  multiple_choice: "Multiple Choice",
+  true_false: "True / False",
+  image_choice: "Image Choice",
+  ordering: "Ordering",
+};
 
 // ── Inner form ────────────────────────────────────────────────────────────────
 
@@ -47,6 +79,8 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
   const [questions, setQuestions] = useState<QuestionDraft[]>(initial.questions);
   const [formError, setFormError] = useState<string | null>(null);
   const [showAIModal, setShowAIModal] = useState(false);
+  const [uploadingQuestion, setUploadingQuestion] = useState<number | null>(null);
+  const [uploadingOption, setUploadingOption] = useState<{ q: number; o: number } | null>(null);
 
   const mutation = useMutation({
     mutationFn: (input: { title: string; questions: QuestionInput[] }) =>
@@ -64,14 +98,39 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.text.trim()) return `Question ${i + 1} needs text.`;
-      if (q.options.length < 2 || q.options.length > 4)
-        return `Question ${i + 1} must have 2–4 options.`;
       for (let j = 0; j < q.options.length; j++) {
         if (!q.options[j].text.trim())
           return `Question ${i + 1}, option ${j + 1} needs text.`;
       }
-      if (q.options.filter((o) => o.is_correct).length !== 1)
-        return `Question ${i + 1} must have exactly one correct option.`;
+
+      switch (q.type) {
+        case "multiple_choice":
+          if (q.options.length < 2 || q.options.length > 4)
+            return `Question ${i + 1} must have 2–4 options.`;
+          if (q.options.filter((o) => o.is_correct).length !== 1)
+            return `Question ${i + 1} must have exactly one correct option.`;
+          break;
+        case "true_false":
+          if (q.options.length !== 2)
+            return `Question ${i + 1} must have exactly 2 options.`;
+          if (q.options.filter((o) => o.is_correct).length !== 1)
+            return `Question ${i + 1} must have exactly one correct option.`;
+          break;
+        case "image_choice":
+          if (q.options.length < 2 || q.options.length > 4)
+            return `Question ${i + 1} must have 2–4 options.`;
+          if (q.options.filter((o) => o.is_correct).length !== 1)
+            return `Question ${i + 1} must have exactly one correct option.`;
+          for (let j = 0; j < q.options.length; j++) {
+            if (!q.options[j].image_url?.trim())
+              return `Question ${i + 1}, option ${j + 1} needs an image URL.`;
+          }
+          break;
+        case "ordering":
+          if (q.options.length < 2 || q.options.length > 8)
+            return `Question ${i + 1} must have 2–8 items.`;
+          break;
+      }
     }
     return null;
   }
@@ -85,15 +144,25 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
       title: title.trim(),
       questions: questions.map((q, i) => ({
         text: q.text.trim(),
+        type: q.type,
         time_limit: q.time_limit,
         order: i + 1,
-        options: q.options.map((o) => ({ text: o.text.trim(), is_correct: o.is_correct })),
+        image_url: q.image_url || undefined,
+        options: q.options.map((o, j) => ({
+          text: o.text.trim(),
+          is_correct: o.is_correct,
+          image_url: o.image_url || undefined,
+          sort_order: j,
+        })),
       })),
     });
   }
 
   function updateQuestion(idx: number, patch: Partial<QuestionDraft>) {
     setQuestions((qs) => qs.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
+  }
+  function changeQuestionType(idx: number, newType: QuestionType) {
+    setQuestions((qs) => qs.map((q, i) => (i === idx ? blankQuestion(newType) : q)));
   }
   function addQuestion() { setQuestions((qs) => [...qs, blankQuestion()]); }
   function removeQuestion(idx: number) { setQuestions((qs) => qs.filter((_, i) => i !== idx)); }
@@ -115,12 +184,165 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
       i !== qIdx ? q : { ...q, options: q.options.filter((_, j) => j !== oIdx) }
     ));
   }
+  function moveOption(qIdx: number, oIdx: number, direction: -1 | 1) {
+    setQuestions((qs) => qs.map((q, i) => {
+      if (i !== qIdx) return q;
+      const newOpts = [...q.options];
+      const target = oIdx + direction;
+      if (target < 0 || target >= newOpts.length) return q;
+      [newOpts[oIdx], newOpts[target]] = [newOpts[target], newOpts[oIdx]];
+      return { ...q, options: newOpts };
+    }));
+  }
+
+  async function handleImageUpload(qIdx: number, file: File) {
+    setUploadingQuestion(qIdx);
+    try {
+      const { url } = await uploadImage(file);
+      updateQuestion(qIdx, { image_url: url });
+    } catch {
+      setFormError("Failed to upload image. Please try again.");
+    } finally {
+      setUploadingQuestion(null);
+    }
+  }
+  async function handleOptionImageUpload(qIdx: number, oIdx: number, file: File) {
+    setUploadingOption({ q: qIdx, o: oIdx });
+    try {
+      const { url } = await uploadImage(file);
+      updateOption(qIdx, oIdx, { image_url: url });
+    } catch {
+      setFormError("Failed to upload image. Please try again.");
+    } finally {
+      setUploadingOption(null);
+    }
+  }
 
   const inputStyle = {
     background: "rgba(255,255,255,0.06)",
     border: "1px solid rgba(245,200,66,0.2)",
     color: "white",
   };
+
+  function renderOptions(q: QuestionDraft, qIdx: number) {
+    const isOrdering = q.type === "ordering";
+    const isTF = q.type === "true_false";
+    const isImage = q.type === "image_choice";
+    const maxOptions = isOrdering ? 8 : 4;
+
+    return (
+      <div className="space-y-2">
+        {isOrdering && (
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Items are in correct order. Players will see them shuffled.
+          </p>
+        )}
+        {q.options.map((o, oIdx) => {
+          const color = OPTION_COLORS[oIdx % 4];
+          return (
+            <div key={oIdx} className="flex items-center gap-2">
+              {isOrdering ? (
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button type="button" disabled={oIdx === 0} onClick={() => moveOption(qIdx, oIdx, -1)}
+                    className="p-0.5 rounded disabled:opacity-20" style={{ color: "#f5c842" }}>
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button type="button" disabled={oIdx === q.options.length - 1} onClick={() => moveOption(qIdx, oIdx, 1)}
+                    className="p-0.5 rounded disabled:opacity-20" style={{ color: "#f5c842" }}>
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCorrect(qIdx, oIdx)}
+                  disabled={isTF && o.is_correct}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 transition"
+                  style={{
+                    background: o.is_correct ? color : `${color}22`,
+                    border: `2px solid ${o.is_correct ? color : `${color}44`}`,
+                    color: o.is_correct ? "white" : color,
+                  }}
+                  title="Mark as correct">
+                  {o.is_correct ? <Check className="w-4 h-4" /> : OPTION_LETTERS[oIdx]}
+                </button>
+              )}
+
+              <div className="flex-1 flex flex-col gap-1">
+                <input
+                  type="text"
+                  required
+                  value={o.text}
+                  onChange={(e) => updateOption(qIdx, oIdx, { text: e.target.value })}
+                  disabled={isTF}
+                  className="w-full rounded-xl px-3 py-2 text-sm outline-none transition disabled:opacity-60"
+                  style={inputStyle}
+                  onFocus={(e) => (e.target.style.borderColor = color)}
+                  onBlur={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.2)")}
+                  placeholder={isOrdering ? `Item ${oIdx + 1}` : `Option ${oIdx + 1}`}
+                />
+                {isImage && (
+                  <div className="flex items-center gap-1">
+                    {o.image_url ? (
+                      <div className="flex items-center gap-1.5 flex-1 rounded-lg px-1.5 py-0.5" style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)" }}>
+                        <img src={o.image_url} alt="Preview" className="w-7 h-7 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        <span className="text-[10px] truncate flex-1" style={{ color: "rgba(255,255,255,0.5)" }}>Image</span>
+                        <button type="button" onClick={() => updateOption(qIdx, oIdx, { image_url: "" })} className="p-0.5 rounded transition hover:bg-white/10 shrink-0" title="Remove image">
+                          <X className="w-3 h-3" style={{ color: "rgba(255,255,255,0.4)" }} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <label className="cursor-pointer shrink-0" title="Upload image">
+                          {uploadingOption?.q === qIdx && uploadingOption?.o === oIdx ? (
+                            <Loader2 className="w-3 h-3 animate-spin" style={{ color: "#f5c842" }} />
+                          ) : (
+                            <Image className="w-3 h-3" style={{ color: "rgba(255,255,255,0.4)" }} />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleOptionImageUpload(qIdx, oIdx, f);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <input
+                          type="url"
+                          value={o.image_url ?? ""}
+                          onChange={(e) => updateOption(qIdx, oIdx, { image_url: e.target.value })}
+                          className="w-full rounded-lg px-2 py-1 text-xs outline-none transition"
+                          style={inputStyle}
+                          placeholder="Image URL"
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!isTF && q.options.length > 2 && (
+                <button type="button" onClick={() => removeOption(qIdx, oIdx)}
+                  className="p-1.5 rounded-lg transition shrink-0" style={{ color: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.05)" }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {!isTF && q.options.length < maxOptions && (
+          <button type="button" onClick={() => addOption(qIdx)}
+            className="text-xs font-medium transition mt-1 flex items-center gap-1"
+            style={{ color: "#f5c842" }}>
+            <Plus className="w-3 h-3" /> Add {isOrdering ? "item" : "option"}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -168,6 +390,7 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
                   setQuestions(
                     data.questions.map((q) => ({
                       text: q.text,
+                      type: (q.type as QuestionType) || "multiple_choice",
                       time_limit: q.time_limit,
                       options: q.options.map((o) => ({ text: o.text, is_correct: o.is_correct })),
                     }))
@@ -212,12 +435,24 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
                   </div>
                   <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>Question {qIdx + 1}</span>
                 </div>
-                {questions.length > 1 && (
-                  <button type="button" onClick={() => removeQuestion(qIdx)} aria-label="Remove"
-                    className="p-1.5 rounded-lg transition" style={{ color: "#f44336", background: "rgba(244,67,54,0.1)" }}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={q.type}
+                    onChange={(e) => changeQuestionType(qIdx, e.target.value as QuestionType)}
+                    className="rounded-lg px-2 py-1 text-xs outline-none cursor-pointer"
+                    style={{ background: "rgba(245,200,66,0.15)", color: "#f5c842", border: "1px solid rgba(245,200,66,0.3)" }}
+                    aria-label="Question type">
+                    {(Object.entries(TYPE_LABELS) as [QuestionType, string][]).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                  {questions.length > 1 && (
+                    <button type="button" onClick={() => removeQuestion(qIdx)} aria-label="Remove"
+                      className="p-1.5 rounded-lg transition" style={{ color: "#f44336", background: "rgba(244,67,54,0.1)" }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <input
@@ -229,8 +464,48 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
                 style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.6)")}
                 onBlur={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.2)")}
-                placeholder="Question text"
+                placeholder={q.type === "ordering" ? "e.g. Arrange these events in chronological order" : "Question text"}
               />
+
+              <div className="flex items-center gap-2">
+                {q.image_url ? (
+                  <div className="flex items-center gap-2 flex-1 rounded-lg px-2 py-1" style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.2)" }}>
+                    <img src={q.image_url} alt="Preview" className="w-10 h-10 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    <span className="text-xs truncate flex-1" style={{ color: "rgba(255,255,255,0.5)" }}>Image attached</span>
+                    <button type="button" onClick={() => updateQuestion(qIdx, { image_url: "" })} className="p-1 rounded transition hover:bg-white/10 shrink-0" title="Remove image">
+                      <X className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="cursor-pointer shrink-0 p-1 rounded-lg transition hover:bg-white/10" title="Upload image">
+                      {uploadingQuestion === qIdx ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#f5c842" }} />
+                      ) : (
+                        <Image className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleImageUpload(qIdx, f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="url"
+                      value={q.image_url ?? ""}
+                      onChange={(e) => updateQuestion(qIdx, { image_url: e.target.value })}
+                      className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none transition"
+                      style={inputStyle}
+                      placeholder="Question image URL (optional)"
+                    />
+                  </>
+                )}
+              </div>
 
               <div className="flex items-center gap-3">
                 <label className="text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.5)" }}>Time limit (s)</label>
@@ -247,52 +522,7 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
                 />
               </div>
 
-              {/* Options */}
-              <div className="space-y-2">
-                {q.options.map((o, oIdx) => {
-                  const color = OPTION_COLORS[oIdx % 4];
-                  return (
-                    <div key={oIdx} className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setCorrect(qIdx, oIdx)}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 transition"
-                        style={{
-                          background: o.is_correct ? color : `${color}22`,
-                          border: `2px solid ${o.is_correct ? color : `${color}44`}`,
-                          color: o.is_correct ? "white" : color,
-                        }}
-                        title="Mark as correct">
-                        {o.is_correct ? <Check className="w-4 h-4" /> : OPTION_LETTERS[oIdx]}
-                      </button>
-                      <input
-                        type="text"
-                        required
-                        value={o.text}
-                        onChange={(e) => updateOption(qIdx, oIdx, { text: e.target.value })}
-                        className="flex-1 rounded-xl px-3 py-2 text-sm outline-none transition"
-                        style={inputStyle}
-                        onFocus={(e) => (e.target.style.borderColor = color)}
-                        onBlur={(e) => (e.target.style.borderColor = "rgba(245,200,66,0.2)")}
-                        placeholder={`Option ${oIdx + 1}`}
-                      />
-                      {q.options.length > 2 && (
-                        <button type="button" onClick={() => removeOption(qIdx, oIdx)}
-                          className="p-1.5 rounded-lg transition shrink-0" style={{ color: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.05)" }}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-                {q.options.length < 4 && (
-                  <button type="button" onClick={() => addOption(qIdx)}
-                    className="text-xs font-medium transition mt-1 flex items-center gap-1"
-                    style={{ color: "#f5c842" }}>
-                    <Plus className="w-3 h-3" /> Add option
-                  </button>
-                )}
-              </div>
+              {renderOptions(q, qIdx)}
             </motion.div>
           ))}
 
@@ -347,8 +577,10 @@ function quizToInitial(quiz: Quiz) {
       quiz.questions && quiz.questions.length > 0
         ? quiz.questions.map((q) => ({
             text: q.text,
+            type: q.type || ("multiple_choice" as QuestionType),
             time_limit: q.time_limit,
-            options: q.options.map((o) => ({ text: o.text, is_correct: !!o.is_correct })),
+            image_url: q.image_url,
+            options: q.options.map((o) => ({ text: o.text, is_correct: !!o.is_correct, image_url: o.image_url })),
           }))
         : [blankQuestion()],
   };

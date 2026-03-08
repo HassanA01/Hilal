@@ -22,3 +22,27 @@ func CalculatePoints(elapsed float64, timeLimit int) int {
 	}
 	return points
 }
+
+// CalculateOrderingPoints returns partial-credit points for an ordering question.
+// correctPositions is the number of items the player placed in the correct position.
+// totalItems is the total number of items. The result is scaled by the time-weighted score.
+func CalculateOrderingPoints(correctPositions, totalItems int, elapsed float64, timeLimit int) int {
+	if totalItems == 0 {
+		return 0
+	}
+	positionRatio := float64(correctPositions) / float64(totalItems)
+	timePoints := CalculatePoints(elapsed, timeLimit)
+	return int(math.Round(positionRatio * float64(timePoints)))
+}
+
+// CountCorrectPositions compares the player's ordering to the correct ordering
+// and returns how many items are in the correct position.
+func CountCorrectPositions(playerOrder, correctOrder []string) int {
+	count := 0
+	for i := range playerOrder {
+		if i < len(correctOrder) && playerOrder[i] == correctOrder[i] {
+			count++
+		}
+	}
+	return count
+}

@@ -21,19 +21,26 @@ describe("authStore", () => {
   });
 
   it("setAuth stores token and admin", () => {
-    useAuthStore.getState().setAuth("tok123", mockAdmin);
+    useAuthStore.getState().setAuth("tok123", mockAdmin, false);
     const { token, admin, isAuthenticated } = useAuthStore.getState();
     expect(token).toBe("tok123");
     expect(admin).toEqual(mockAdmin);
     expect(isAuthenticated()).toBe(true);
   });
 
+  it("setAuth stores isSuperadmin flag", () => {
+    useAuthStore.getState().setAuth("tok123", mockAdmin, true);
+    const { isSuperadmin } = useAuthStore.getState();
+    expect(isSuperadmin).toBe(true);
+  });
+
   it("clearAuth resets state", () => {
-    useAuthStore.getState().setAuth("tok123", mockAdmin);
+    useAuthStore.getState().setAuth("tok123", mockAdmin, true);
     useAuthStore.getState().clearAuth();
-    const { token, admin, isAuthenticated } = useAuthStore.getState();
+    const { token, admin, isSuperadmin, isAuthenticated } = useAuthStore.getState();
     expect(token).toBeNull();
     expect(admin).toBeNull();
+    expect(isSuperadmin).toBe(false);
     expect(isAuthenticated()).toBe(false);
   });
 });

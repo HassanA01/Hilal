@@ -96,7 +96,8 @@ See `.env.example` — copy to `.env` before starting.
 
 ## Branching
 
-- `main` — deployable, CI-protected
-- `feat/<issue>-<desc>` — features
-- `fix/<issue>-<desc>` — bug fixes
+- `main` — production, always deployable, CI-protected
+- `dev` — integration branch for next release. All feature/fix PRs target `dev`. Merge `dev` → `main` when stable.
+- `feat/<issue>-<desc>` — features (branch from `dev`, PR into `dev`)
+- `fix/<issue>-<desc>` — bug fixes (branch from `dev`, PR into `dev`)
 - `chore/<desc>` — maintenance
