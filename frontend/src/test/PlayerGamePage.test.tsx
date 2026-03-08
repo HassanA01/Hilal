@@ -271,7 +271,7 @@ describe("PlayerGamePage", () => {
 
   // --- Question type rendering ---
 
-  it("renders ordering question with word bank and disabled submit button", () => {
+  it("renders ordering question with draggable list and submit button", () => {
     renderPlayerGame();
     act(() =>
       capturedOnMessage!({
@@ -294,19 +294,19 @@ describe("PlayerGamePage", () => {
       }),
     );
     expect(screen.getByText("Arrange in order")).toBeInTheDocument();
-    // All items start in the word bank
+    // All items shown in the reorderable list
     expect(screen.getByText("First")).toBeInTheDocument();
     expect(screen.getByText("Second")).toBeInTheDocument();
     expect(screen.getByText("Third")).toBeInTheDocument();
-    // Submit button is present but disabled until all items are placed
+    // Drag hint shown
+    expect(screen.getByText(/drag to reorder/i)).toBeInTheDocument();
+    // Submit button is present and enabled (all items are already in the list)
     const submitBtn = screen.getByRole("button", { name: /submit order/i });
     expect(submitBtn).toBeInTheDocument();
-    expect(submitBtn).toBeDisabled();
-    // Empty state message shown
-    expect(screen.getByText(/tap items below to arrange them/i)).toBeInTheDocument();
+    expect(submitBtn).not.toBeDisabled();
   });
 
-  it("sends option_ids array when ordering answer submitted via word bank", async () => {
+  it("sends option_ids array when ordering answer submitted", async () => {
     renderPlayerGame();
     act(() =>
       capturedOnMessage!({
@@ -329,14 +329,8 @@ describe("PlayerGamePage", () => {
       }),
     );
 
-    // Tap items from the word bank in order
-    await userEvent.click(screen.getByRole("button", { name: "First" }));
-    await userEvent.click(screen.getByRole("button", { name: "Second" }));
-    await userEvent.click(screen.getByRole("button", { name: "Third" }));
-
-    // Submit should now be enabled
+    // Items are already in the list in their initial order — click submit
     const submitBtn = screen.getByRole("button", { name: /submit order/i });
-    expect(submitBtn).not.toBeDisabled();
     await userEvent.click(submitBtn);
 
     expect(mockSend).toHaveBeenCalledWith({

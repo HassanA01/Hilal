@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "motion/react";
-import { Check, X, Send } from "lucide-react";
+import { motion, Reorder } from "motion/react";
+import { Check, X, Send, GripVertical } from "lucide-react";
 import { CrescentIcon } from "../components/icons";
 import { LeaderboardDisplay } from "../components/LeaderboardDisplay";
 import { PodiumScreen } from "../components/PodiumScreen";
@@ -79,8 +79,8 @@ export function PlayerGamePage() {
   const leaderboardRef = useRef<LeaderboardEntry[]>([]);
   const [podium, setPodium] = useState<PodiumEntry[]>([]);
 
-  // Ordering question state (word bank)
-  const [placedIds, setPlacedIds] = useState<string[]>([]);
+  // Ordering question state (drag-to-reorder)
+  const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [orderingSubmitted, setOrderingSubmitted] = useState(false);
 
   const { data: playerResults } = useQuery({
@@ -103,8 +103,8 @@ export function PlayerGamePage() {
           setSelectedOptionId(null);
           setRevealPayload(null);
           setQuestionStartedAt(Date.now());
-          // Reset ordering state — bank starts full, answer area empty
-          setPlacedIds([]);
+          // Reset ordering state — initialize with shuffled option IDs
+          setOrderedIds(p.question.options.map((o: { id: string }) => o.id));
           setOrderingSubmitted(false);
           break;
         }
@@ -148,20 +148,10 @@ export function PlayerGamePage() {
     send({ type: "answer_submitted", payload: { question_id: questionId, option_id: optionId } });
   };
 
-  const addToAnswer = (id: string) => {
-    if (orderingSubmitted) return;
-    setPlacedIds((prev) => [...prev, id]);
-  };
-
-  const removeFromAnswer = (id: string) => {
-    if (orderingSubmitted) return;
-    setPlacedIds((prev) => prev.filter((x) => x !== id));
-  };
-
   const handleSubmitOrdering = (questionId: string) => {
     if (orderingSubmitted) return;
     setOrderingSubmitted(true);
-    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: placedIds } });
+    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: orderedIds } });
   };
 
   // ── Ended ────────────────────────────────────────────────────────────────
@@ -263,7 +253,7 @@ export function PlayerGamePage() {
             </motion.h3>
             <div className="grid grid-cols-1 gap-3 mb-6">
               {correctOrder.map((optId, i) => {
-                const playerGotRight = placedIds[i] === optId;
+                const playerGotRight = orderedIds[i] === optId;
                 return (
                   <motion.div key={optId}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl"
@@ -474,131 +464,70 @@ export function PlayerGamePage() {
               </div>
             </motion.div>
           ) : isOrdering ? (
-            /* ── Ordering question (word bank) ─────────────────────────── */
-            (() => {
-              const bankIds = opts.map(o => o.id).filter(id => !placedIds.includes(id));
-              const allPlaced = placedIds.length === opts.length;
-              return (
-                <div className="flex flex-col gap-4">
-                  {/* Answer zone */}
-                  <div>
-                    <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>Your Answer</p>
-                    {placedIds.length === 0 ? (
-                      <div
-                        className="rounded-xl p-6 text-center"
-                        style={{
-                          background: "rgba(42,20,66,0.7)",
-                          border: "2px dashed rgba(245,200,66,0.2)",
-                        }}
+            /* ── Ordering question (drag to reorder) ──────────────────── */
+            <div className="flex flex-col gap-4">
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Drag to reorder
+              </p>
+
+              <Reorder.Group
+                axis="y"
+                values={orderedIds}
+                onReorder={setOrderedIds}
+                className="flex flex-col gap-2"
+                data-testid="ordering-list"
+              >
+                {orderedIds.map((id, i) => {
+                  const opt = opts.find(o => o.id === id);
+                  return (
+                    <Reorder.Item
+                      key={id}
+                      value={id}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-grab active:cursor-grabbing select-none"
+                      style={{
+                        background: "rgba(245,200,66,0.1)",
+                        border: "1px solid rgba(245,200,66,0.3)",
+                        touchAction: "none",
+                      }}
+                      whileDrag={{
+                        scale: 1.03,
+                        boxShadow: "0 8px 30px rgba(0,0,0,0.4), 0 0 0 2px rgba(245,200,66,0.5)",
+                        zIndex: 50,
+                      }}
+                    >
+                      <span
+                        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0"
+                        style={{ background: "rgba(245,200,66,0.25)", color: "#f5c842" }}
                       >
-                        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-                          Tap items below to arrange them
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <AnimatePresence mode="popLayout">
-                          {placedIds.map((id, i) => {
-                            const opt = opts.find(o => o.id === id);
-                            return (
-                              <motion.button
-                                key={id}
-                                layout
-                                layoutId={id}
-                                onClick={() => removeFromAnswer(id)}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl text-left w-full"
-                                style={{
-                                  background: "rgba(245,200,66,0.1)",
-                                  border: "1px solid rgba(245,200,66,0.3)",
-                                }}
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                              >
-                                <span
-                                  className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0"
-                                  style={{ background: "rgba(245,200,66,0.25)", color: "#f5c842" }}
-                                >
-                                  {i + 1}
-                                </span>
-                                <span className="text-white font-medium flex-1 leading-tight text-sm">
-                                  {opt?.text}
-                                </span>
-                                <X className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.4)" }} />
-                              </motion.button>
-                            );
-                          })}
-                        </AnimatePresence>
-                      </div>
-                    )}
-                  </div>
+                        {i + 1}
+                      </span>
+                      <span className="text-white font-medium flex-1 leading-tight text-sm">
+                        {opt?.text}
+                      </span>
+                      <GripVertical className="w-5 h-5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+                    </Reorder.Item>
+                  );
+                })}
+              </Reorder.Group>
 
-                  {/* Divider */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px" style={{ background: "rgba(245,200,66,0.15)" }} />
-                    <CrescentIcon className="w-4 h-4" style={{ color: "rgba(245,200,66,0.3)" }} />
-                    <div className="flex-1 h-px" style={{ background: "rgba(245,200,66,0.15)" }} />
-                  </div>
-
-                  {/* Word Bank */}
-                  <div>
-                    <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>Word Bank</p>
-                    <div className="flex flex-wrap gap-2" data-testid="word-bank">
-                      <AnimatePresence mode="popLayout">
-                        {bankIds.map(id => {
-                          const opt = opts.find(o => o.id === id);
-                          return (
-                            <motion.button
-                              key={id}
-                              layout
-                              layoutId={id}
-                              onClick={() => addToAnswer(id)}
-                              className="px-4 py-2.5 rounded-xl font-medium text-sm"
-                              style={{
-                                background: "rgba(42,20,66,0.7)",
-                                border: "1px solid rgba(245,200,66,0.2)",
-                                color: "white",
-                              }}
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              whileHover={{ scale: 1.05, borderColor: "rgba(245,200,66,0.5)" }}
-                              whileTap={{ scale: 0.95 }}
-                              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                            >
-                              {opt?.text}
-                            </motion.button>
-                          );
-                        })}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Submit button */}
-                  <motion.button
-                    onClick={() => handleSubmitOrdering(q.id)}
-                    disabled={!allPlaced}
-                    className="mt-2 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:cursor-not-allowed"
-                    style={{
-                      background: allPlaced
-                        ? "linear-gradient(135deg, #f5c842 0%, #ff6b35 100%)"
-                        : "rgba(245,200,66,0.15)",
-                      boxShadow: allPlaced ? "0 6px 20px rgba(245,200,66,0.4)" : "none",
-                      color: allPlaced ? "white" : "rgba(255,255,255,0.3)",
-                    }}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    whileHover={allPlaced ? { scale: 1.02 } : {}}
-                    whileTap={allPlaced ? { scale: 0.98 } : {}}
-                  >
-                    <Send className="w-5 h-5" />
-                    Submit Order
-                  </motion.button>
-                </div>
-              );
-            })()
+              {/* Submit button */}
+              <motion.button
+                onClick={() => handleSubmitOrdering(q.id)}
+                className="mt-2 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+                style={{
+                  background: "linear-gradient(135deg, #f5c842 0%, #ff6b35 100%)",
+                  boxShadow: "0 6px 20px rgba(245,200,66,0.4)",
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Send className="w-5 h-5" />
+                Submit Order
+              </motion.button>
+            </div>
           ) : isTrueFalse ? (
             /* ── True / False question ─────────────────────────────────── */
             <div className="flex flex-col gap-4">
