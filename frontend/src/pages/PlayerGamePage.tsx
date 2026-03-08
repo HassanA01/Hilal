@@ -466,45 +466,50 @@ export function PlayerGamePage() {
           ) : isOrdering ? (
             /* ── Ordering question (drag to reorder) ──────────────────── */
             <div className="flex flex-col gap-4">
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Drag to reorder
+              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Hold and drag to reorder
               </p>
 
               <Reorder.Group
+                as="div"
                 axis="y"
                 values={orderedIds}
                 onReorder={setOrderedIds}
-                className="flex flex-col gap-2"
+                className="flex flex-col gap-3"
                 data-testid="ordering-list"
               >
                 {orderedIds.map((id, i) => {
                   const opt = opts.find(o => o.id === id);
                   return (
                     <Reorder.Item
+                      as="div"
                       key={id}
                       value={id}
-                      className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-grab active:cursor-grabbing select-none"
+                      className="flex items-center gap-3 px-4 py-4 rounded-2xl cursor-grab active:cursor-grabbing select-none"
                       style={{
-                        background: "rgba(245,200,66,0.1)",
-                        border: "1px solid rgba(245,200,66,0.3)",
+                        background: "rgba(42,20,66,0.8)",
+                        border: "2px solid rgba(245,200,66,0.25)",
                         touchAction: "none",
+                        position: "relative",
                       }}
                       whileDrag={{
-                        scale: 1.03,
-                        boxShadow: "0 8px 30px rgba(0,0,0,0.4), 0 0 0 2px rgba(245,200,66,0.5)",
-                        zIndex: 50,
+                        scale: 1.05,
+                        boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 2px #f5c842",
+                        background: "rgba(42,20,66,0.95)",
+                        cursor: "grabbing",
                       }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     >
                       <span
-                        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0"
-                        style={{ background: "rgba(245,200,66,0.25)", color: "#f5c842" }}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0"
+                        style={{ background: "rgba(245,200,66,0.2)", color: "#f5c842" }}
                       >
                         {i + 1}
                       </span>
-                      <span className="text-white font-medium flex-1 leading-tight text-sm">
+                      <span className="text-white font-medium flex-1 leading-tight">
                         {opt?.text}
                       </span>
-                      <GripVertical className="w-5 h-5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+                      <GripVertical className="w-6 h-6 flex-shrink-0" style={{ color: "rgba(245,200,66,0.4)" }} />
                     </Reorder.Item>
                   );
                 })}
