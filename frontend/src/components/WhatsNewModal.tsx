@@ -1,34 +1,28 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, Music, PartyPopper, GripVertical, Bug, Sparkles } from "lucide-react";
+import { X, CheckCheck, ListChecks, ImageIcon, Sparkles } from "lucide-react";
 
-const CURRENT_VERSION = "1.2.0";
+const CURRENT_VERSION = "1.3.0";
 const STORAGE_KEY = `hilal-whats-new-seen-v${CURRENT_VERSION}`;
 
 const features = [
   {
-    icon: Music,
-    title: "Game Audio",
+    icon: CheckCheck,
+    title: "Multi-Correct MCQ",
     description:
-      "Lobby music, ticking countdown, reveal stings, and podium celebration — with a mute toggle.",
+      "Multiple choice questions can now have more than one correct answer. Players pick one — any correct option counts.",
   },
   {
-    icon: PartyPopper,
-    title: "Podium Fireworks",
+    icon: ListChecks,
+    title: "Multi Select Questions",
     description:
-      "Physics-based confetti and fireworks light up the podium screen.",
+      "New question type where players must select all correct answers to score.",
   },
   {
-    icon: GripVertical,
-    title: "Kick Players & Drag-to-Reorder",
+    icon: ImageIcon,
+    title: "Image URL Fix",
     description:
-      "Remove players from the lobby and enjoy smoother drag-to-reorder for ordering questions.",
-  },
-  {
-    icon: Bug,
-    title: "Bug Fixes",
-    description:
-      "AI true/false answers, MCQ option shuffling, and stale player cleanup.",
+      "Image URL inputs now validate on blur instead of immediately showing 'attached'.",
   },
 ];
 
