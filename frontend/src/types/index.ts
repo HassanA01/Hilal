@@ -4,7 +4,7 @@ export interface Admin {
   created_at: string;
 }
 
-export type QuestionType = "multiple_choice" | "true_false" | "image_choice" | "ordering";
+export type QuestionType = "multiple_choice" | "multi_select" | "true_false" | "image_choice" | "ordering";
 
 export interface Option {
   id: string;
@@ -117,6 +117,7 @@ export interface RevealScoreEntry {
 
 export interface AnswerRevealPayload {
   correct_option_id?: string;
+  correct_option_ids?: string[];
   correct_order?: string[];
   scores: Record<string, RevealScoreEntry>;
 }
@@ -131,11 +132,15 @@ export interface PodiumEntry {
 export interface PlayerResultQuestion {
   question_id: string;
   question_text: string;
+  question_type?: QuestionType;
   question_order: number;
   selected_option_id: string;
   selected_option_text: string;
   correct_option_id: string;
   correct_option_text: string;
+  correct_option_ids?: string[];
+  correct_option_texts?: string[];
+  answer_data?: string[];
   is_correct: boolean;
   points: number;
 }

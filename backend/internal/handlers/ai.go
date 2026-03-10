@@ -23,8 +23,13 @@ import (
 	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
-// maxAIQuestions is the hard cap on AI-generated question count.
-const maxAIQuestions = 10
+// maxAIQuestions returns the configured cap on AI-generated question count.
+func (h *Handler) maxAIQuestions() int {
+	if h.config.MaxAIQuestions > 0 {
+		return h.config.MaxAIQuestions
+	}
+	return 20
+}
 
 // allAIQuestionTypes is the set of question types the AI can generate.
 var allAIQuestionTypes = []string{"multiple_choice", "true_false", "ordering"}
@@ -92,8 +97,8 @@ func (h *Handler) GenerateQuiz(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "context contains invalid characters")
 		return
 	}
-	if req.QuestionCount < 1 || req.QuestionCount > maxAIQuestions {
-		writeError(w, http.StatusBadRequest, "question_count must be between 1 and "+strconv.Itoa(maxAIQuestions))
+	if req.QuestionCount < 1 || req.QuestionCount > h.maxAIQuestions() {
+		writeError(w, http.StatusBadRequest, "question_count must be between 1 and "+strconv.Itoa(h.maxAIQuestions()))
 		return
 	}
 	allowedTypes, errMsg := validateQuestionTypes(req.QuestionTypes)
@@ -142,8 +147,8 @@ func (h *Handler) GenerateQuizFromUpload(w http.ResponseWriter, r *http.Request)
 
 	// 2. Get question_count from form field
 	questionCount, err := strconv.Atoi(r.FormValue("question_count"))
-	if err != nil || questionCount < 1 || questionCount > maxAIQuestions {
-		writeError(w, http.StatusBadRequest, "question_count must be between 1 and "+strconv.Itoa(maxAIQuestions))
+	if err != nil || questionCount < 1 || questionCount > h.maxAIQuestions() {
+		writeError(w, http.StatusBadRequest, "question_count must be between 1 and "+strconv.Itoa(h.maxAIQuestions()))
 		return
 	}
 
@@ -244,7 +249,7 @@ func (h *Handler) generateQuizFromText(w http.ResponseWriter, r *http.Request, g
 	for _, t := range allowedTypes {
 		switch t {
 		case "multiple_choice":
-			typeDescParts = append(typeDescParts, "multiple_choice (4 options, 1 correct)")
+			typeDescParts = append(typeDescParts, "multiple_choice (4 options, exactly 1 correct)")
 		case "true_false":
 			typeDescParts = append(typeDescParts, "true_false (2 options: True/False, 1 correct)")
 		case "ordering":

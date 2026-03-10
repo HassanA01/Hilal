@@ -408,20 +408,19 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 	q := questions[state.CurrentIndex]
 
 	isOrdering := q.Type == string(models.QTypeOrdering)
+	isMultiSelect := q.Type == string(models.QTypeMultiSelect)
 
-	// Find correct option (for non-ordering types).
-	var correctOptionID string
+	// Collect correct option IDs / ordering.
+	var correctOptionIDs []string
 	var correctOrder []string
 	if isOrdering {
-		// For ordering, correct order is defined by sort_order of options.
 		for _, opt := range q.Options {
 			correctOrder = append(correctOrder, opt.ID)
 		}
 	} else {
 		for _, opt := range q.Options {
 			if opt.IsCorrect {
-				correctOptionID = opt.ID
-				break
+				correctOptionIDs = append(correctOptionIDs, opt.ID)
 			}
 		}
 	}
@@ -446,9 +445,21 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 			isCorrect = correctPositions == len(correctOrder)
 			elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
 			points = CalculateOrderingPoints(correctPositions, len(correctOrder), elapsed, q.TimeLimit)
+		} else if isMultiSelect {
+			// Multi-select: exact set match required.
+			isCorrect = sameStringSet(ans.OptionIDs, correctOptionIDs)
+			if isCorrect {
+				elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
+				points = CalculatePoints(elapsed, q.TimeLimit)
+			}
 		} else {
-			// MC / TF / Image: binary correct/incorrect.
-			isCorrect = ans.OptionID == correctOptionID
+			// MC / TF / Image: correct if pick is any of the correct options.
+			for _, cid := range correctOptionIDs {
+				if ans.OptionID == cid {
+					isCorrect = true
+					break
+				}
+			}
 			if isCorrect {
 				elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
 				points = CalculatePoints(elapsed, q.TimeLimit)
@@ -469,7 +480,7 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 			continue
 		}
 
-		if isOrdering {
+		if isOrdering || isMultiSelect {
 			answerDataJSON, _ := json.Marshal(ans.OptionIDs)
 			_, dbErr := e.db.Exec(ctx,
 				`INSERT INTO game_answers (id, session_id, player_id, question_id, option_id, answer_data, answered_at, is_correct, points)
@@ -479,7 +490,7 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 				ans.AnsweredAt, isCorrect, points,
 			)
 			if dbErr != nil {
-				slog.Error("engine: insert ordering answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
+				slog.Error("engine: insert multi-option answer failed", "error", dbErr, "session", sessionCode, "player", playerID)
 			}
 		} else {
 			optionUUID, err := uuid.Parse(ans.OptionID)
@@ -523,8 +534,12 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 	}
 	if isOrdering {
 		revealPayload["correct_order"] = correctOrder
+	} else if len(correctOptionIDs) == 1 {
+		revealPayload["correct_option_id"] = correctOptionIDs[0]
 	} else {
-		revealPayload["correct_option_id"] = correctOptionID
+		// Multiple correct options — send both for backward compat.
+		revealPayload["correct_option_id"] = correctOptionIDs[0]
+		revealPayload["correct_option_ids"] = correctOptionIDs
 	}
 
 	e.hub.Broadcast(sessionCode, hub.Message{

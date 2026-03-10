@@ -43,6 +43,7 @@ const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 const TYPE_LABELS: Record<string, string> = {
   multiple_choice: "Multiple Choice",
+  multi_select: "Multi Select",
   true_false: "True / False",
   image_choice: "Image Choice",
   ordering: "Ordering",

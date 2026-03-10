@@ -35,6 +35,24 @@ func CalculateOrderingPoints(correctPositions, totalItems int, elapsed float64, 
 	return int(math.Round(positionRatio * float64(timePoints)))
 }
 
+// sameStringSet returns true if a and b contain exactly the same elements (order-independent).
+func sameStringSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[string]int, len(a))
+	for _, s := range a {
+		m[s]++
+	}
+	for _, s := range b {
+		m[s]--
+		if m[s] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // CountCorrectPositions compares the player's ordering to the correct ordering
 // and returns how many items are in the correct position.
 func CountCorrectPositions(playerOrder, correctOrder []string) int {

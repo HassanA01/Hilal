@@ -339,7 +339,9 @@ func (h *Handler) GetPlayerResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch per-question breakdown
+	// Fetch per-question breakdown.
+	// Use a lateral subquery to aggregate all correct options into arrays,
+	// avoiding duplicate rows for multi_select questions.
 	rows, err := h.db.Query(r.Context(), `
 		SELECT
 			q.id,
@@ -350,13 +352,16 @@ func (h *Handler) GetPlayerResults(w http.ResponseWriter, r *http.Request) {
 			COALESCE(sel.text, ''),
 			ga.is_correct,
 			ga.points,
-			corr.id,
-			COALESCE(corr.text, ''),
+			COALESCE(corr.ids, ARRAY[]::UUID[]),
+			COALESCE(corr.texts, ARRAY[]::TEXT[]),
 			ga.answer_data
 		FROM game_answers ga
 		JOIN questions q ON q.id = ga.question_id
 		LEFT JOIN options sel ON sel.id = ga.option_id
-		LEFT JOIN options corr ON corr.question_id = q.id AND corr.is_correct = TRUE
+		LEFT JOIN LATERAL (
+			SELECT array_agg(o.id) AS ids, array_agg(o.text) AS texts
+			FROM options o WHERE o.question_id = q.id AND o.is_correct = TRUE
+		) corr ON TRUE
 		WHERE ga.session_id = $1 AND ga.player_id = $2
 		ORDER BY q."order" ASC
 	`, sessionID, playerID)
@@ -373,11 +378,16 @@ func (h *Handler) GetPlayerResults(w http.ResponseWriter, r *http.Request) {
 			&q.QuestionID, &q.QuestionText, &q.QuestionType, &q.QuestionOrder,
 			&q.SelectedOptionID, &q.SelectedOptionText,
 			&q.IsCorrect, &q.Points,
-			&q.CorrectOptionID, &q.CorrectOptionText,
+			&q.CorrectOptionIDs, &q.CorrectOptionTexts,
 			&q.AnswerData,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to read results")
 			return
+		}
+		// Backward compat: populate single correct fields from arrays.
+		if len(q.CorrectOptionIDs) > 0 {
+			q.CorrectOptionID = &q.CorrectOptionIDs[0]
+			q.CorrectOptionText = q.CorrectOptionTexts[0]
 		}
 		results.Questions = append(results.Questions, q)
 	}

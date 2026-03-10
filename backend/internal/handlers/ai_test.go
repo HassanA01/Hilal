@@ -58,12 +58,12 @@ func TestGenerateQuiz_ValidationErrors(t *testing.T) {
 		},
 		{
 			name:       "question_count exceeds AI cap",
-			body:       map[string]any{"topic": "Science", "question_count": 11},
+			body:       map[string]any{"topic": "Science", "question_count": 21},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "question_count way too high",
-			body:       map[string]any{"topic": "Science", "question_count": 21},
+			body:       map[string]any{"topic": "Science", "question_count": 100},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -116,7 +116,7 @@ func TestGenerateQuiz_MaxQuestionsAllowed(t *testing.T) {
 	h := newTestHandler()
 	w := postJSON(t, h.GenerateQuiz, map[string]any{
 		"topic":          "Science",
-		"question_count": 10,
+		"question_count": 20,
 	})
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("want 503 (passed validation), got %d", w.Code)
@@ -348,7 +348,7 @@ func TestGenerateQuizFromUpload_InvalidQuestionCount(t *testing.T) {
 		count string
 	}{
 		{"zero", "0"},
-		{"eleven", "11"},
+		{"exceeds cap", "21"},
 		{"non-numeric", "abc"},
 		{"empty", ""},
 	}

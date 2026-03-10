@@ -208,9 +208,9 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 			return
 		}
 
-		// Check for ordering answer (option_ids array) vs single answer (option_id string).
+		// Check for multi-option answer (option_ids array) vs single answer (option_id string).
 		if rawIDs, ok := payload["option_ids"]; ok {
-			// Ordering answer
+			// Multi-option answer (ordering or multi-select MC)
 			idSlice, ok := rawIDs.([]any)
 			if !ok || len(idSlice) == 0 {
 				return
@@ -223,6 +223,8 @@ func handleMessage(h *Handler, client *hub.Client, sessionCode string, isHost bo
 				}
 				optionIDs = append(optionIDs, s)
 			}
+			// SubmitOrderingAnswer stores OptionIDs — works for both ordering and multi-select MC.
+			// The evaluation logic in triggerReveal distinguishes by question type.
 			if err := h.engine.SubmitOrderingAnswer(ctx, sessionCode, client.ID, questionID, optionIDs); err != nil {
 				slog.Error("engine.SubmitOrderingAnswer failed", "error", err, "session", sessionCode, "player", client.ID)
 			}

@@ -78,8 +78,22 @@ func validateQuestionByType(qi questionInputItem) string {
 				correct++
 			}
 		}
-		if correct != 1 {
-			return "multiple choice questions must have exactly 1 correct option"
+		if correct < 1 {
+			return "multiple choice questions must have at least 1 correct option"
+		}
+
+	case models.QTypeMultiSelect:
+		if len(qi.Options) < 2 || len(qi.Options) > 4 {
+			return "multi-select questions must have 2–4 options"
+		}
+		correct := 0
+		for _, o := range qi.Options {
+			if o.IsCorrect {
+				correct++
+			}
+		}
+		if correct < 2 {
+			return "multi-select questions must have at least 2 correct options"
 		}
 
 	case models.QTypeTrueFalse:

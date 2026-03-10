@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -51,6 +52,13 @@ func New(db *pgxpool.Pool, redisClient *redis.Client, gameHub *hub.Hub, cfg *con
 	}
 }
 
+// AppConfig returns public configuration values the frontend needs.
+func (h *Handler) AppConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"max_ai_questions": h.config.MaxAIQuestions,
+	})
+}
+
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Auth
@@ -94,6 +102,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			r.Get("/platform/engagement", h.PlatformEngagement)
 			r.Get("/platform/kpis", h.PlatformKPIs)
 		})
+
+		// Public config (frontend sync)
+		r.Get("/config", h.AppConfig)
 
 		// Uploaded images (public — players need to see them)
 		r.Get("/uploads/*", h.ServeUpload)

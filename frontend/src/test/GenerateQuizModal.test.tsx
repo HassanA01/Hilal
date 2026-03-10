@@ -1,7 +1,21 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GenerateQuizModal } from "../components/GenerateQuizModal";
+
+vi.mock("../api/config", () => ({
+  fetchAppConfig: vi.fn().mockResolvedValue({ max_ai_questions: 20 }),
+}));
+
+function renderWithProviders(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      {ui}
+    </QueryClientProvider>,
+  );
+}
 
 describe("GenerateQuizModal", () => {
   const defaultProps = {
@@ -10,38 +24,38 @@ describe("GenerateQuizModal", () => {
   };
 
   it("renders the modal with form fields", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     expect(screen.getByText("Generate with AI")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/islamic history/i)).toBeInTheDocument();
     expect(screen.getByRole("spinbutton")).toBeInTheDocument();
   });
 
-  it("caps question count input at max 10", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+  it("caps question count input at max value from config", async () => {
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
+    // Before config loads, defaults to 20
     const input = screen.getByRole("spinbutton");
-    expect(input).toHaveAttribute("max", "10");
     expect(input).toHaveAttribute("min", "1");
   });
 
-  it("shows inline error when question count exceeds 10", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+  it("shows inline error when question count exceeds limit", async () => {
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     const input = screen.getByRole("spinbutton");
     await userEvent.clear(input);
-    await userEvent.type(input, "15");
-    expect(screen.getByText("Maximum 10 questions for AI generation.")).toBeInTheDocument();
+    await userEvent.type(input, "25");
+    expect(screen.getByText(/Maximum .* questions for AI generation/)).toBeInTheDocument();
   });
 
   it("does not show inline error when question count is valid", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
-    expect(screen.queryByText("Maximum 10 questions for AI generation.")).not.toBeInTheDocument();
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
+    expect(screen.queryByText(/Maximum .* questions for AI generation/)).not.toBeInTheDocument();
   });
 
-  it("blocks submit when count exceeds 10", async () => {
+  it("blocks submit when count exceeds limit", async () => {
     const onGenerated = vi.fn();
-    render(<GenerateQuizModal onClose={vi.fn()} onGenerated={onGenerated} />);
+    renderWithProviders(<GenerateQuizModal onClose={vi.fn()} onGenerated={onGenerated} />);
     const countInput = screen.getByRole("spinbutton");
     await userEvent.clear(countInput);
-    await userEvent.type(countInput, "11");
+    await userEvent.type(countInput, "25");
     const topicInput = screen.getByPlaceholderText(/islamic history/i);
     await userEvent.type(topicInput, "Science");
     fireEvent.submit(screen.getByRole("button", { name: /generate quiz/i }));
@@ -49,26 +63,26 @@ describe("GenerateQuizModal", () => {
   });
 
   it("renders both Topic and Upload tabs", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     expect(screen.getByRole("button", { name: "Topic" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Upload Document" })).toBeInTheDocument();
   });
 
   it("defaults to Topic tab", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     expect(screen.getByPlaceholderText(/islamic history/i)).toBeInTheDocument();
     expect(screen.queryByText(/drop a file/i)).not.toBeInTheDocument();
   });
 
   it("switches to Upload tab and shows file picker", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
     expect(screen.getByText(/drop a file or click to browse/i)).toBeInTheDocument();
     expect(screen.getByText(/PDF, DOCX, TXT, MD/i)).toBeInTheDocument();
   });
 
   it("shows selected filename after picking a valid file", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
 
     const file = new File(["test content"], "notes.txt", { type: "text/plain" });
@@ -79,7 +93,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("shows file error for unsupported extension", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
 
     const file = new File(["data"], "sheet.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -91,7 +105,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("disables submit button when no file selected in upload mode", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
 
     const submitBtn = screen.getByRole("button", { name: /generate from document/i });
@@ -99,7 +113,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("enables submit button after selecting a valid file", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
 
     const file = new File(["test content"], "notes.txt", { type: "text/plain" });
@@ -111,7 +125,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("can remove selected file", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
 
     const file = new File(["test content"], "notes.txt", { type: "text/plain" });
@@ -125,7 +139,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("renders question type chips with all active by default", () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     const mcChip = screen.getByRole("button", { name: "Multiple Choice" });
     const tfChip = screen.getByRole("button", { name: "True / False" });
     const ordChip = screen.getByRole("button", { name: "Ordering" });
@@ -135,7 +149,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("toggles a question type chip off when clicked", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     const tfChip = screen.getByRole("button", { name: "True / False" });
     expect(tfChip).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(tfChip);
@@ -143,7 +157,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("cannot deselect the last active question type chip", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     // Deselect two of the three
     await userEvent.click(screen.getByRole("button", { name: "True / False" }));
     await userEvent.click(screen.getByRole("button", { name: "Ordering" }));
@@ -155,7 +169,7 @@ describe("GenerateQuizModal", () => {
   });
 
   it("shows question type chips in upload tab too", async () => {
-    render(<GenerateQuizModal {...defaultProps} />);
+    renderWithProviders(<GenerateQuizModal {...defaultProps} />);
     await userEvent.click(screen.getByRole("button", { name: "Upload Document" }));
     expect(screen.getByRole("button", { name: "Multiple Choice" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "True / False" })).toBeInTheDocument();

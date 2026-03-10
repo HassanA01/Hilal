@@ -12,6 +12,7 @@ type QuestionType string
 
 const (
 	QTypeMultipleChoice QuestionType = "multiple_choice"
+	QTypeMultiSelect    QuestionType = "multi_select"
 	QTypeTrueFalse      QuestionType = "true_false"
 	QTypeImageChoice    QuestionType = "image_choice"
 	QTypeOrdering       QuestionType = "ordering"
@@ -129,6 +130,8 @@ type PlayerResultQuestion struct {
 	SelectedOptionText string          `json:"selected_option_text,omitempty"`
 	CorrectOptionID    *uuid.UUID      `json:"correct_option_id,omitempty"`
 	CorrectOptionText  string          `json:"correct_option_text,omitempty"`
+	CorrectOptionIDs   []uuid.UUID     `json:"correct_option_ids,omitempty"`
+	CorrectOptionTexts []string        `json:"correct_option_texts,omitempty"`
 	AnswerData         json.RawMessage `json:"answer_data,omitempty"`
 	IsCorrect          bool            `json:"is_correct"`
 	Points             int             `json:"points"`

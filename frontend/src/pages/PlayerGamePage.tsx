@@ -83,6 +83,10 @@ export function PlayerGamePage() {
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [orderingSubmitted, setOrderingSubmitted] = useState(false);
 
+  // Multi-select question state
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
+  const [multiSelectSubmitted, setMultiSelectSubmitted] = useState(false);
+
   const { data: playerResults } = useQuery({
     queryKey: ["playerResults", sessionId, playerId],
     queryFn: () => getPlayerResults(sessionId, playerId),
@@ -106,6 +110,9 @@ export function PlayerGamePage() {
           // Reset ordering state — initialize with shuffled option IDs
           setOrderedIds(p.question.options.map((o: { id: string }) => o.id));
           setOrderingSubmitted(false);
+          // Reset multi-select state
+          setSelectedOptionIds([]);
+          setMultiSelectSubmitted(false);
           break;
         }
         case "answer_reveal": {
@@ -152,6 +159,19 @@ export function PlayerGamePage() {
     if (orderingSubmitted) return;
     setOrderingSubmitted(true);
     send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: orderedIds } });
+  };
+
+  const handleToggleOption = (optionId: string) => {
+    if (multiSelectSubmitted) return;
+    setSelectedOptionIds((prev) =>
+      prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId]
+    );
+  };
+
+  const handleSubmitMultiSelect = (questionId: string) => {
+    if (multiSelectSubmitted || selectedOptionIds.length === 0) return;
+    setMultiSelectSubmitted(true);
+    send({ type: "answer_submitted", payload: { question_id: questionId, option_ids: selectedOptionIds } });
   };
 
   // ── Ended ────────────────────────────────────────────────────────────────
@@ -304,7 +324,9 @@ export function PlayerGamePage() {
       );
     }
 
-    // MC / True-False / Image Choice reveal
+    // MC / True-False / Image Choice / Multi-Select reveal
+    const isMultiSelect = qType === "multi_select";
+    const correctIds = revealPayload.correct_option_ids ?? (revealPayload.correct_option_id ? [revealPayload.correct_option_id] : []);
     return (
       <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
         <div className="ramadan-pattern" />
@@ -312,8 +334,8 @@ export function PlayerGamePage() {
           {/* Answer tiles */}
           <div className="grid grid-cols-1 gap-4 mb-6">
             {opts.map((opt, i) => {
-              const isCorrectOpt = opt.id === revealPayload.correct_option_id;
-              const wasSelected = opt.id === selectedOptionId;
+              const isCorrectOpt = correctIds.includes(opt.id);
+              const wasSelected = isMultiSelect ? selectedOptionIds.includes(opt.id) : opt.id === selectedOptionId;
               const color = OPTION_COLORS[i % 4];
               return (
                 <motion.div key={opt.id}
@@ -385,8 +407,9 @@ export function PlayerGamePage() {
     const opts = q.options;
     const qType = q.type ?? "multiple_choice";
     const isOrdering = qType === "ordering";
+    const isMultiSelect = qType === "multi_select";
     const isTrueFalse = qType === "true_false";
-    const isLockedIn = isOrdering ? orderingSubmitted : !!selectedOptionId;
+    const isLockedIn = isOrdering ? orderingSubmitted : isMultiSelect ? multiSelectSubmitted : !!selectedOptionId;
 
     return (
       <div className="min-h-screen w-full relative overflow-hidden" style={{ background: "#1a0a2e" }}>
@@ -412,6 +435,9 @@ export function PlayerGamePage() {
             )}
             {isOrdering && (
               <p className="mt-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Arrange items in the correct order</p>
+            )}
+            {isMultiSelect && (
+              <p className="mt-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Select all that apply</p>
             )}
           </motion.div>
 
@@ -440,6 +466,10 @@ export function PlayerGamePage() {
                 <p className="text-lg font-bold text-white mb-2">Answer locked in!</p>
                 {isOrdering ? (
                   <p className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Your order has been submitted</p>
+                ) : isMultiSelect ? (
+                  <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
+                    {selectedOptionIds.length} option{selectedOptionIds.length !== 1 ? "s" : ""} selected
+                  </p>
                 ) : (
                   (() => {
                     const selectedIdx = opts.findIndex(o => o.id === selectedOptionId);
@@ -531,6 +561,68 @@ export function PlayerGamePage() {
               >
                 <Send className="w-5 h-5" />
                 Submit Order
+              </motion.button>
+            </div>
+          ) : isMultiSelect ? (
+            /* ── Multi-select question (checkboxes + Submit) ───────────── */
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Select all correct answers
+              </p>
+              {opts.map((opt, i) => {
+                const color = OPTION_COLORS[i % 4];
+                const isSelected = selectedOptionIds.includes(opt.id);
+                return (
+                  <motion.button key={opt.id}
+                    onClick={() => handleToggleOption(opt.id)}
+                    className="relative px-4 py-3 rounded-2xl text-left overflow-hidden group"
+                    style={{
+                      background: isSelected
+                        ? `linear-gradient(135deg, ${color}dd 0%, ${color}bb 100%)`
+                        : `${color}22`,
+                      boxShadow: isSelected ? `0 4px 15px ${color}40` : "none",
+                      border: `2px solid ${isSelected ? color : `${color}55`}`,
+                    }}
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 + i * 0.08 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}>
+                    <div className="relative z-10 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0"
+                        style={{
+                          background: isSelected ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                          color: isSelected ? "white" : color,
+                        }}>
+                        {isSelected ? <Check className="w-4 h-4" /> : String.fromCharCode(65 + i)}
+                      </div>
+                      <p className={`font-medium leading-tight ${isSelected ? "text-white" : ""}`}
+                        style={{ color: isSelected ? "white" : "rgba(255,255,255,0.7)" }}>
+                        {opt.text}
+                      </p>
+                    </div>
+                  </motion.button>
+                );
+              })}
+
+              {/* Submit button */}
+              <motion.button
+                onClick={() => handleSubmitMultiSelect(q.id)}
+                disabled={selectedOptionIds.length === 0}
+                className="mt-2 w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: selectedOptionIds.length > 0
+                    ? "linear-gradient(135deg, #f5c842 0%, #ff6b35 100%)"
+                    : "rgba(255,255,255,0.1)",
+                  boxShadow: selectedOptionIds.length > 0 ? "0 6px 20px rgba(245,200,66,0.4)" : "none",
+                }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                whileHover={selectedOptionIds.length > 0 ? { scale: 1.02 } : {}}
+                whileTap={selectedOptionIds.length > 0 ? { scale: 0.98 } : {}}>
+                <Send className="w-5 h-5" />
+                Submit ({selectedOptionIds.length})
               </motion.button>
             </div>
           ) : isTrueFalse ? (

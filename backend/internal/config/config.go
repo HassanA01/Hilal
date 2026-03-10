@@ -17,6 +17,7 @@ type Config struct {
 	FrontendURL        string
 	AnthropicAPIKey    string
 	AIRateLimitPerHour int
+	MaxAIQuestions     int
 	UploadsDir         string
 	SuperadminEmail    string
 }
@@ -34,6 +35,13 @@ func Load() *Config {
 		}
 	}
 
+	maxAIQuestions := 20
+	if v := os.Getenv("MAX_AI_QUESTIONS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxAIQuestions = n
+		}
+	}
+
 	return &Config{
 		Port:               getEnv("PORT", "8081"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://hilal:hilal@localhost:5432/hilal?sslmode=disable"),
@@ -42,6 +50,7 @@ func Load() *Config {
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
 		AnthropicAPIKey:    anthropicKey,
 		AIRateLimitPerHour: aiRateLimit,
+		MaxAIQuestions:     maxAIQuestions,
 		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
 		SuperadminEmail:    getEnv("SUPERADMIN_EMAIL", ""),
 	}
