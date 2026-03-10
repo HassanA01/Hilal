@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "motion/react";
-import { Plus, Trash2, Check, Sparkles, ArrowUp, ArrowDown, Image, Loader2, X } from "lucide-react";
+import { motion, AnimatePresence, Reorder } from "motion/react";
+import { Plus, Trash2, Check, Sparkles, ArrowUp, ArrowDown, Image, Loader2, X, GripVertical } from "lucide-react";
 import { CrescentIcon } from "../components/icons";
 import { getQuiz, createQuiz, updateQuiz } from "../api/quizzes";
 import type { Quiz, QuestionType } from "../types";
@@ -17,6 +17,7 @@ interface OptionDraft {
 }
 
 interface QuestionDraft {
+  _id: string;
   text: string;
   type: QuestionType;
   time_limit: number;
@@ -29,32 +30,33 @@ function blankOption(): OptionDraft {
 }
 
 function blankQuestion(type: QuestionType = "multiple_choice"): QuestionDraft {
+  const _id = crypto.randomUUID();
   switch (type) {
     case "true_false":
       return {
-        text: "", type, time_limit: 20,
+        _id, text: "", type, time_limit: 20,
         options: [{ text: "True", is_correct: true }, { text: "False", is_correct: false }],
       };
     case "multi_select":
       return {
-        text: "", type, time_limit: 20,
+        _id, text: "", type, time_limit: 20,
         options: [blankOption(), blankOption(), blankOption(), blankOption()],
       };
     case "ordering":
       return {
-        text: "", type, time_limit: 30,
+        _id, text: "", type, time_limit: 30,
         options: [{ text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }],
       };
     case "image_choice":
       return {
-        text: "", type, time_limit: 20, image_url: "",
+        _id, text: "", type, time_limit: 20, image_url: "",
         options: [
           { text: "", is_correct: true, image_url: "" },
           { text: "", is_correct: false, image_url: "" },
         ],
       };
     default:
-      return { text: "", type: "multiple_choice", time_limit: 20, options: [blankOption(), blankOption()] };
+      return { _id, text: "", type: "multiple_choice", time_limit: 20, options: [blankOption(), blankOption()] };
   }
 }
 
@@ -432,6 +434,7 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
                   setTitle(data.title);
                   setQuestions(
                     data.questions.map((q) => ({
+                      _id: crypto.randomUUID(),
                       text: q.text,
                       type: (q.type as QuestionType) || "multiple_choice",
                       time_limit: q.time_limit,
@@ -463,15 +466,17 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
         </motion.div>
 
         {/* Questions */}
-        <div className="space-y-4">
+        <Reorder.Group as="div" axis="y" values={questions} onReorder={setQuestions} className="space-y-4">
           {questions.map((q, qIdx) => (
-            <motion.div key={qIdx}
+            <Reorder.Item as="div" key={q._id} value={q}
               className="p-5 rounded-2xl space-y-4"
-              style={{ background: "linear-gradient(135deg, rgba(42,20,66,0.8) 0%, rgba(30,15,50,0.9) 100%)", border: "1px solid rgba(245,200,66,0.15)" }}
-              initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: qIdx * 0.04 }}>
+              style={{ background: "linear-gradient(135deg, rgba(42,20,66,0.8) 0%, rgba(30,15,50,0.9) 100%)", border: "1px solid rgba(245,200,66,0.15)", touchAction: "none", position: "relative" }}
+              whileDrag={{ scale: 1.02, boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 2px #f5c842" }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}>
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                  <GripVertical className="w-4 h-4 cursor-grab active:cursor-grabbing shrink-0" style={{ color: "rgba(245,200,66,0.4)" }} />
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
                     style={{ background: "rgba(245,200,66,0.2)", color: "#f5c842" }}>
                     {qIdx + 1}
@@ -579,18 +584,18 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
               </div>
 
               {renderOptions(q, qIdx)}
-            </motion.div>
+            </Reorder.Item>
           ))}
+        </Reorder.Group>
 
           <motion.button
             type="button"
             onClick={addQuestion}
-            className="w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition"
+            className="w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition mt-4"
             style={{ border: "2px dashed rgba(245,200,66,0.3)", color: "rgba(245,200,66,0.7)" }}
             whileHover={{ borderColor: "rgba(245,200,66,0.6)", color: "#f5c842" }}>
             <Plus className="w-4 h-4" /> Add question
           </motion.button>
-        </div>
 
         {(formError || mutation.isError) && (
           <div className="text-sm rounded-xl px-4 py-3"
@@ -632,6 +637,7 @@ function quizToInitial(quiz: Quiz) {
     questions:
       quiz.questions && quiz.questions.length > 0
         ? quiz.questions.map((q) => ({
+            _id: crypto.randomUUID(),
             text: q.text,
             type: q.type || ("multiple_choice" as QuestionType),
             time_limit: q.time_limit,
@@ -669,10 +675,16 @@ export function QuizFormPage() {
     return <p className="text-center py-12" style={{ color: "#f44336" }}>Quiz not found.</p>;
   }
 
-  const initial = existing
+  const raw = existing
     ? quizToInitial(existing)
     : (location.state as { generated?: { title: string; questions: QuestionDraft[] } })?.generated
       ?? { title: "", questions: [blankQuestion()] };
+
+  // Ensure every question has a stable _id for Reorder
+  const initial = {
+    ...raw,
+    questions: raw.questions.map((q) => ({ ...q, _id: q._id || crypto.randomUUID() })),
+  };
 
   return <QuizForm quizID={quizID} initial={initial} />;
 }
