@@ -113,8 +113,8 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
         case "multiple_choice":
           if (q.options.length < 2 || q.options.length > 4)
             return `Question ${i + 1} must have 2–4 options.`;
-          if (q.options.filter((o) => o.is_correct).length !== 1)
-            return `Question ${i + 1} must have exactly one correct option.`;
+          if (q.options.filter((o) => o.is_correct).length < 1)
+            return `Question ${i + 1} must have at least 1 correct option.`;
           break;
         case "multi_select":
           if (q.options.length < 2 || q.options.length > 4)
@@ -186,11 +186,11 @@ function QuizForm({ quizID, initial }: QuizFormProps) {
   function setCorrect(qIdx: number, oIdx: number) {
     setQuestions((qs) => qs.map((q, i) => {
       if (i !== qIdx) return q;
-      if (q.type === "multi_select") {
-        // Toggle: checkbox style
+      if (q.type === "multiple_choice" || q.type === "multi_select") {
+        // Toggle: checkbox style — MC and multi-select allow multiple correct
         return { ...q, options: q.options.map((o, j) => j === oIdx ? { ...o, is_correct: !o.is_correct } : o) };
       }
-      // Radio: exactly one correct
+      // Radio: exactly one correct (TF, image choice)
       return { ...q, options: q.options.map((o, j) => ({ ...o, is_correct: j === oIdx })) };
     }));
   }

@@ -411,24 +411,16 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 	isMultiSelect := q.Type == string(models.QTypeMultiSelect)
 
 	// Collect correct option IDs / ordering.
-	var correctOptionID string
 	var correctOptionIDs []string
 	var correctOrder []string
 	if isOrdering {
 		for _, opt := range q.Options {
 			correctOrder = append(correctOrder, opt.ID)
 		}
-	} else if isMultiSelect {
-		for _, opt := range q.Options {
-			if opt.IsCorrect {
-				correctOptionIDs = append(correctOptionIDs, opt.ID)
-			}
-		}
 	} else {
 		for _, opt := range q.Options {
 			if opt.IsCorrect {
-				correctOptionID = opt.ID
-				break
+				correctOptionIDs = append(correctOptionIDs, opt.ID)
 			}
 		}
 	}
@@ -461,8 +453,13 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 				points = CalculatePoints(elapsed, q.TimeLimit)
 			}
 		} else {
-			// MC / TF / Image: binary correct/incorrect.
-			isCorrect = ans.OptionID == correctOptionID
+			// MC / TF / Image: correct if pick is any of the correct options.
+			for _, cid := range correctOptionIDs {
+				if ans.OptionID == cid {
+					isCorrect = true
+					break
+				}
+			}
 			if isCorrect {
 				elapsed := ans.AnsweredAt.Sub(state.QuestionStarted).Seconds()
 				points = CalculatePoints(elapsed, q.TimeLimit)
@@ -537,10 +534,12 @@ func (e *Engine) triggerReveal(ctx context.Context, sessionCode string) error {
 	}
 	if isOrdering {
 		revealPayload["correct_order"] = correctOrder
-	} else if isMultiSelect {
-		revealPayload["correct_option_ids"] = correctOptionIDs
+	} else if len(correctOptionIDs) == 1 {
+		revealPayload["correct_option_id"] = correctOptionIDs[0]
 	} else {
-		revealPayload["correct_option_id"] = correctOptionID
+		// Multiple correct options — send both for backward compat.
+		revealPayload["correct_option_id"] = correctOptionIDs[0]
+		revealPayload["correct_option_ids"] = correctOptionIDs
 	}
 
 	e.hub.Broadcast(sessionCode, hub.Message{

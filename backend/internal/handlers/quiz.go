@@ -78,8 +78,8 @@ func validateQuestionByType(qi questionInputItem) string {
 				correct++
 			}
 		}
-		if correct != 1 {
-			return "multiple choice questions must have exactly 1 correct option"
+		if correct < 1 {
+			return "multiple choice questions must have at least 1 correct option"
 		}
 
 	case models.QTypeMultiSelect:

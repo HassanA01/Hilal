@@ -62,7 +62,7 @@ describe("QuizFormPage — create mode", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /create quiz/i }));
     expect(
-      await screen.findByText(/exactly one correct option/i)
+      await screen.findByText(/at least 1 correct option/i)
     ).toBeInTheDocument();
   });
 
