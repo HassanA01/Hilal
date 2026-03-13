@@ -66,7 +66,7 @@ func main() {
 	r.Use(chimw.RequestID)
 	r.Use(mw.RequestID) // correlation ID propagation
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{cfg.FrontendURL},
+		AllowedOrigins:   cfg.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,

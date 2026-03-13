@@ -15,6 +15,7 @@ type Config struct {
 	RedisURL           string
 	JWTSecret          string
 	FrontendURL        string
+	AllowedOrigins     []string
 	AnthropicAPIKey    string
 	AIRateLimitPerHour int
 	MaxAIQuestions     int
@@ -42,12 +43,29 @@ func Load() *Config {
 		}
 	}
 
+	frontendURL := getEnv("FRONTEND_URL", "http://localhost:5173")
+
+	// Build allowed origins list: ALLOWED_ORIGINS (comma-separated) + FRONTEND_URL.
+	var allowedOrigins []string
+	if extra := os.Getenv("ALLOWED_ORIGINS"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	}
+	// Always include the primary frontend URL.
+	if frontendURL != "" && !sliceContains(allowedOrigins, frontendURL) {
+		allowedOrigins = append(allowedOrigins, frontendURL)
+	}
+
 	return &Config{
 		Port:               getEnv("PORT", "8081"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://hilal:hilal@localhost:5432/hilal?sslmode=disable"),
 		RedisURL:           getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:          getEnv("JWT_SECRET", ""),
-		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:5173"),
+		FrontendURL:        frontendURL,
+		AllowedOrigins:     allowedOrigins,
 		AnthropicAPIKey:    anthropicKey,
 		AIRateLimitPerHour: aiRateLimit,
 		MaxAIQuestions:     maxAIQuestions,
@@ -90,6 +108,15 @@ func (c *Config) Validate() error {
 func containsControlChars(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func sliceContains(ss []string, target string) bool {
+	for _, s := range ss {
+		if s == target {
 			return true
 		}
 	}

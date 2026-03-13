@@ -17,12 +17,18 @@ import (
 	"github.com/HassanA01/Hilal/backend/internal/models"
 )
 
-func newUpgrader(frontendURL string) *websocket.Upgrader {
+func newUpgrader(allowedOrigins []string) *websocket.Upgrader {
 	return &websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			return r.Header.Get("Origin") == frontendURL
+			origin := r.Header.Get("Origin")
+			for _, o := range allowedOrigins {
+				if origin == o {
+					return true
+				}
+			}
+			return false
 		},
 	}
 }
@@ -37,7 +43,7 @@ const (
 func (h *Handler) HostWebSocket(w http.ResponseWriter, r *http.Request) {
 	sessionCode := chi.URLParam(r, "sessionCode")
 
-	conn, err := newUpgrader(h.config.FrontendURL).Upgrade(w, r, nil)
+	conn, err := newUpgrader(h.config.AllowedOrigins).Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade error", "error", err)
 		return
@@ -69,7 +75,7 @@ func (h *Handler) PlayerWebSocket(w http.ResponseWriter, r *http.Request) {
 	playerID := r.URL.Query().Get("player_id")
 	playerName := r.URL.Query().Get("name")
 
-	conn, err := newUpgrader(h.config.FrontendURL).Upgrade(w, r, nil)
+	conn, err := newUpgrader(h.config.AllowedOrigins).Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("ws upgrade error", "error", err)
 		return
