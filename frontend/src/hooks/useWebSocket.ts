@@ -10,6 +10,9 @@ interface UseWebSocketOptions {
   enabled?: boolean;
 }
 
+const MAX_BACKOFF_MS = 16_000;
+const INITIAL_BACKOFF_MS = 1_000;
+
 export function useWebSocket({
   url,
   onMessage,
@@ -19,9 +22,11 @@ export function useWebSocket({
   enabled = true,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
+  const intentionalClose = useRef(false);
+  const backoffMs = useRef(INITIAL_BACKOFF_MS);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep all callbacks in refs so they never appear in the effect deps.
-  // The effect only re-runs when url or enabled changes.
   const onMessageRef = useRef(onMessage);
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
@@ -43,33 +48,62 @@ export function useWebSocket({
   useEffect(() => {
     if (!enabled) return;
 
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+    intentionalClose.current = false;
+    backoffMs.current = INITIAL_BACKOFF_MS;
 
-    ws.onopen = () => onOpenRef.current?.();
-    ws.onclose = () => onCloseRef.current?.();
-    ws.onerror = (e) => onErrorRef.current?.(e);
-    ws.onmessage = (event) => {
-      // writePump may batch multiple messages in one frame (newline-separated).
-      const frames = (event.data as string).split("\n").filter(Boolean);
-      for (const frame of frames) {
-        try {
-          const msg = JSON.parse(frame) as WsMessage;
-          onMessageRef.current(msg);
-        } catch {
-          console.error("Failed to parse WS message", frame);
+    function connect() {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        backoffMs.current = INITIAL_BACKOFF_MS;
+        onOpenRef.current?.();
+      };
+
+      ws.onclose = () => {
+        onCloseRef.current?.();
+        if (!intentionalClose.current) {
+          // Schedule reconnect with exponential backoff
+          const delay = backoffMs.current;
+          backoffMs.current = Math.min(backoffMs.current * 2, MAX_BACKOFF_MS);
+          reconnectTimer.current = setTimeout(connect, delay);
         }
-      }
-    };
+      };
+
+      ws.onerror = (e) => onErrorRef.current?.(e);
+
+      ws.onmessage = (event) => {
+        // writePump may batch multiple messages in one frame (newline-separated).
+        const frames = (event.data as string).split("\n").filter(Boolean);
+        for (const frame of frames) {
+          try {
+            const msg = JSON.parse(frame) as WsMessage;
+            onMessageRef.current(msg);
+          } catch {
+            console.error("Failed to parse WS message", frame);
+          }
+        }
+      };
+    }
+
+    connect();
 
     // Close proactively on tab close / navigation so the server detects the
     // disconnect immediately rather than waiting for the ping/pong timeout.
-    const handlePageHide = () => ws.close();
+    const handlePageHide = () => {
+      intentionalClose.current = true;
+      wsRef.current?.close();
+    };
     window.addEventListener("pagehide", handlePageHide);
 
     return () => {
+      intentionalClose.current = true;
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+      }
       window.removeEventListener("pagehide", handlePageHide);
-      ws.close();
+      wsRef.current?.close();
     };
   }, [url, enabled]); // callbacks intentionally excluded — they live in refs
 
