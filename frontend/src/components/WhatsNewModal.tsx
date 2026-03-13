@@ -1,28 +1,28 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, CheckCheck, ListChecks, ImageIcon, Sparkles } from "lucide-react";
+import { X, Shuffle, Copy, MessageCircleHeart, Sparkles } from "lucide-react";
 
-const CURRENT_VERSION = "1.3.0";
+const CURRENT_VERSION = "1.4.0";
 const STORAGE_KEY = `hilal-whats-new-seen-v${CURRENT_VERSION}`;
 
 const features = [
   {
-    icon: CheckCheck,
-    title: "Multi-Correct MCQ",
+    icon: Shuffle,
+    title: "Ordering Reveal Animation",
     description:
-      "Multiple choice questions can now have more than one correct answer. Players pick one — any correct option counts.",
+      "Ordering questions now hide the correct order from the host screen. On reveal, options smoothly animate into place.",
   },
   {
-    icon: ListChecks,
-    title: "Multi Select Questions",
+    icon: Copy,
+    title: "Copy Questions",
     description:
-      "New question type where players must select all correct answers to score.",
+      "New Copy button on the quiz editor — copies all questions and answers to your clipboard in a readable format.",
   },
   {
-    icon: ImageIcon,
-    title: "Image URL Fix",
+    icon: MessageCircleHeart,
+    title: "New Podium Messages",
     description:
-      "Image URL inputs now validate on blur instead of immediately showing 'attached'.",
+      "The game over screen now shows rotating inspirational messages instead of a fixed one.",
   },
 ];
 
