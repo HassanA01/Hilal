@@ -65,10 +65,8 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
 function useDelayedFlag(active: boolean, delayMs: number, resetKey: string): boolean {
   const [flag, setFlag] = useState(false);
   useEffect(() => {
-    if (!active) { setFlag(false); return; }
-    const timer = setTimeout(() => setFlag(true), delayMs);
+    const timer = setTimeout(() => setFlag(active), active ? delayMs : 0);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, delayMs, resetKey]);
   return flag;
 }
